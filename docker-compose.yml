@@ -1,0 +1,158 @@
+version: '3.8'
+
+# =====================================================================
+#  SportBook - Architecture Microservices Complète (Atelier 10)
+#  Lancement en une seule commande : docker compose up -d
+# =====================================================================
+
+networks:
+  sportbook-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+
+services:
+
+  # -------------------------------------------------------------------
+  # 1. Base de données MySQL (initialise les 6 bases au premier lancement)
+  # -------------------------------------------------------------------
+  mysql-db:
+    image: mysql:8.0
+    container_name: sportbook-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/sportbook_databases.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - sportbook-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------------
+  # 2. Service Discovery : Netflix Eureka Server (:8761)
+  # -------------------------------------------------------------------
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: sportbook-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    networks:
+      - sportbook-network
+
+  # -------------------------------------------------------------------
+  # 3. API Gateway : Spring Cloud Gateway (:8085)
+  # -------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: sportbook-gateway
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    depends_on:
+      - eureka-server
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    networks:
+      - sportbook-network
+
+  # -------------------------------------------------------------------
+  # 4. Microservice Identity & User : Spring Boot (:8081)
+  # -------------------------------------------------------------------
+  identity-user-service:
+    build:
+      context: ./identity-user-service
+      dockerfile: Dockerfile
+    container_name: sportbook-identity
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/sportbook_identity?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ""
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    networks:
+      - sportbook-network
+
+  # -------------------------------------------------------------------
+  # 5. Votre Microservice Coach & Training : .NET 8 Web API (:8087)
+  # -------------------------------------------------------------------
+  coach-training-service:
+    build:
+      context: ./coach-training-service
+      dockerfile: Dockerfile
+    container_name: sportbook-coach
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+      identity-user-service:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=mysql-db;Port=3306;Database=sportbook_coach;User=root;Password=;AllowPublicKeyRetrieval=true;"
+      eureka__client__serviceUrl: "http://eureka-server:8761/eureka/"
+      eureka__instance__hostName: "coach-training-service"
+      eureka__instance__port: "8087"
+      eureka__instance__nonSecurePort: "8087"
+      Services__IdentityServiceUrl: "http://identity-user-service:8081"
+      RabbitMQ__Uri: "amqps://isyyfnpm:mFC4AB9w-swhw_FRg_CCmJNH5lQXMrax@cow.rmq2.cloudamqp.com/isyyfnpm"
+    networks:
+      - sportbook-network
+
+  # -------------------------------------------------------------------
+  # 6. Broker de messages : RabbitMQ avec Interface Management (:15672)
+  # -------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sportbook-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - sportbook-network
+
+  # -------------------------------------------------------------------
+  # 7. Service Avancé : Recommendation Service (Python 3.11 / FastAPI :8090)
+  # -------------------------------------------------------------------
+  recommendation-service:
+    build:
+      context: ./recommendation-service
+      dockerfile: Dockerfile
+    container_name: sportbook-recommendation
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    depends_on:
+      - eureka-server
+      - coach-training-service
+    networks:
+      - sportbook-network
+
+
