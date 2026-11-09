@@ -1,0 +1,116 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Tournois & événements</p>
+    <h1>Équipes</h1>
+    <p class="muted">{{ teams().length }} équipe(s). Ouvrez une fiche pour voir son évolution Elo.</p>
+  </div>
+  <div class="actions">
+    <input class="search" type="search" placeholder="Rechercher une équipe" [ngModel]="query()" (ngModelChange)="query.set($event)" aria-label="Rechercher une équipe" />
+    @if (canWrite()) { <button class="btn primary" (click)="openCreate()">+ Nouvelle équipe</button> }
+  </div>
+</header>
+
+@if (formOpen()) {
+  <form class="panel form-grid form-card" (ngSubmit)="save()" #f="ngForm">
+    <h2>{{ editingId() ? 'Modifier l’équipe' : 'Nouvelle équipe' }}</h2>
+    @if (formError(); as err) {
+      <div class="alert wide" role="alert">
+        <strong>{{ err.message }}</strong>
+        @if (err.details.length) { <ul>@for (d of err.details; track d) { <li>{{ d }}</li> }</ul> }
+      </div>
+    }
+    <label><span>Nom <b aria-hidden="true">*</b></span><input name="name" [(ngModel)]="model.name" required maxlength="100" placeholder="Team Alpha" /></label>
+    <label><span>Nombre de joueurs</span><input name="members" type="number" min="0" [(ngModel)]="model.members" /></label>
+    <div class="form-actions wide">
+      <button type="button" class="btn ghost" (click)="formOpen.set(false)">Annuler</button>
+      <button type="submit" class="btn primary" [disabled]="f.invalid || saving()">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+    </div>
+  </form>
+}
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }} <button class="btn small ghost" (click)="load()">Réessayer</button></div>
+}
+
+<div class="split" [class.with-side]="!!selected()">
+  <div>
+    @if (loading()) {
+      <div class="card-grid compact">@for (i of [1, 2, 3, 4]; track i) { <div class="team-card skeleton"></div> }</div>
+    } @else if (visible().length === 0) {
+      <div class="panel empty-state"><p class="empty-title">Aucune équipe.</p></div>
+    } @else {
+      <div class="card-grid compact">
+        @for (t of visible(); track t.id) {
+          <article class="team-card" [class.selected]="selected()?.id === t.id">
+            <app-team-badge [name]="t.name" />
+            <div class="team-info">
+              <strong>{{ t.name }}</strong>
+              <span class="muted small">{{ t.members }} joueur(s) · #{{ t.id }}</span>
+            </div>
+            <div class="team-actions">
+              <button class="btn small ghost" (click)="openStats(t)">Fiche</button>
+              @if (canWrite()) {
+                <button class="btn small ghost" (click)="openEdit(t)">Modifier</button>
+                <button class="icon-btn" (click)="remove(t)" aria-label="Supprimer">×</button>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </div>
+
+  @if (selected(); as team) {
+    <aside class="panel side-panel" aria-label="Fiche de l’équipe">
+      <header class="side-head">
+        <app-team-badge [name]="team.name" />
+        <div><h2>{{ team.name }}</h2><span class="muted small">Statistiques · stats-service</span></div>
+        <button class="icon-btn" (click)="closeStats()" aria-label="Fermer">×</button>
+      </header>
+
+      @if (statsError(); as err) {
+        <div class="alert">{{ err.message }}</div>
+      } @else if (!stats()) {
+        <p class="empty">Chargement…</p>
+      } @else {
+        @if (stats(); as s) {
+        <div class="stat-row">
+          <div><span class="kpi-value">{{ s.elo.toFixed(0) }}</span><span class="kpi-label">Elo</span></div>
+          <div><span class="kpi-value">{{ s.position ?? '—' }}</span><span class="kpi-label">rang</span></div>
+          <div><span class="kpi-value">{{ s.points }}</span><span class="kpi-label">points</span></div>
+        </div>
+        <p class="record">
+          <b class="w">{{ s.wins }} V</b> · <b>{{ s.draws }} N</b> · <b class="l">{{ s.losses }} D</b>
+          <span class="muted"> · buts {{ s.goals_for }}–{{ s.goals_against }}</span>
+        </p>
+        <app-form-dots [form]="s.form" />
+
+        @if (spark(); as sp) {
+          <figure class="spark">
+            <svg viewBox="0 0 300 80" role="img" aria-label="Évolution du classement Elo">
+              <line x1="0" x2="300" y1="40" y2="40" class="spark-mid" />
+              <polyline [attr.points]="sp.line" class="spark-line" />
+              <circle [attr.cx]="sp.last.x" [attr.cy]="sp.last.y" r="4" class="spark-dot" />
+            </svg>
+            <figcaption class="muted small">Elo de {{ sp.min }} à {{ sp.max }} sur {{ s.history.length }} match(s)</figcaption>
+          </figure>
+          <ul class="history">
+            @for (h of s.history.slice().reverse(); track h.match_id) {
+              <li>
+                <span class="muted small">{{ fmtDate(h.date, true) }}</span>
+                <span>vs {{ h.opponent_name ?? '#' + h.opponent_id }}</span>
+                <b>{{ h.score }}</b>
+                <span class="delta" [class.up]="h.rating_after >= h.rating_before">
+                  {{ h.rating_after >= h.rating_before ? '+' : '' }}{{ (h.rating_after - h.rating_before).toFixed(1) }}
+                </span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="muted small">Aucun match terminé : Elo de départ 1500.</p>
+        }
+        }
+      }
+    </aside>
+  }
+</div>

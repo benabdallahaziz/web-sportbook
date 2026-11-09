@@ -1,0 +1,27 @@
+<div class="shell" [class.nav-open]="open()">
+  <aside class="sidebar" aria-label="Navigation principale">
+    <a class="brand" routerLink="/dashboard" (click)="open.set(false)">SportBook</a>
+    <nav>
+      <a routerLink="/dashboard" routerLinkActive="active" (click)="open.set(false)">Tableau de bord</a>
+      @for (m of modules(); track m.id) {
+        <div class="nav-group" [attr.data-module]="m.id">
+          <span class="nav-title">{{ m.label }}</span>
+          @for (l of m.links; track l.path) {
+            <a [routerLink]="l.path" routerLinkActive="active" (click)="open.set(false)">{{ l.label }}</a>
+          }
+        </div>
+      }
+    </nav>
+    <div class="me">
+      <a routerLink="/profile" class="me-name" (click)="open.set(false)">{{ auth.fullName() }}</a>
+      <small>{{ roleLabel() }}</small>
+      <button class="btn ghost small" (click)="auth.logout()">Se déconnecter</button>
+    </div>
+  </aside>
+  <div class="main">
+    <button class="burger" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-label="Ouvrir le menu">Menu</button>
+    <main><router-outlet /></main>
+  </div>
+  <div class="scrim" (click)="open.set(false)" aria-hidden="true"></div>
+</div>
+<app-toast-host />

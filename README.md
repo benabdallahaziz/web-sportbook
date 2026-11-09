@@ -13,6 +13,16 @@ Clients (Web / Mobile)
 1. `cd eureka-server && mvn spring-boot:run`  → http://localhost:8761
 2. `cd api-gateway && mvn spring-boot:run`    → http://localhost:8085
 3. Chaque membre lance son microservice (il doit s'enregistrer sur Eureka).
+4. `cd frontend && npm install && npm start`  → http://localhost:4200 (Angular 19, appelle la Gateway)
+
+## Frontend (`frontend/`)
+Application Angular 19 reliée à tous les microservices via la Gateway (`src/app/core/config.ts`).
+Le module **Tournois & Statistiques** a ses propres pages (tournois, fiche tournoi, équipes,
+matchs, classement & pronostics) ; les autres modules utilisent la page CRUD générique.
+Détails dans [frontend/README.md](frontend/README.md).
+
+Pour se connecter, `identity-user-service` doit être démarré : créer un compte depuis
+l'écran d'inscription (type **Gérant** pour gérer tournois et matchs).
 
 ## Contrat pour chaque microservice (peu importe le langage)
 

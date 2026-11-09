@@ -1,0 +1,110 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Tournois & événements</p>
+    <h1>Matchs</h1>
+    <p class="muted">Programmez les rencontres et saisissez les scores : le classement se met à jour.</p>
+  </div>
+  <div class="actions">
+    <select [(ngModel)]="tournamentFilter" (ngModelChange)="load()" aria-label="Filtrer par tournoi">
+      <option [ngValue]="null">Tous les tournois</option>
+      @for (t of tournaments(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
+    </select>
+    @if (canWrite()) { <button class="btn primary" (click)="openCreate()">+ Nouveau match</button> }
+  </div>
+</header>
+
+@if (formOpen()) {
+  <form class="panel form-grid form-card" (ngSubmit)="save()" #f="ngForm">
+    <h2>{{ editingId() ? 'Modifier le match' : 'Nouveau match' }}</h2>
+    @if (formError(); as err) {
+      <div class="alert wide" role="alert">
+        <strong>{{ err.message }}</strong>
+        @if (err.details.length) { <ul>@for (d of err.details; track d) { <li>{{ d }}</li> }</ul> }
+      </div>
+    }
+    <label><span>Tournoi <b aria-hidden="true">*</b></span>
+      <select name="tournament" [ngModel]="formTournament" (ngModelChange)="loadRounds($event)" required>
+        <option [ngValue]="null">Choisir…</option>
+        @for (t of tournaments(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
+      </select>
+    </label>
+    <label><span>Tour <b aria-hidden="true">*</b></span>
+      <select name="round" [(ngModel)]="model.round_id" required [disabled]="!formRounds().length">
+        <option [ngValue]="null">{{ formTournament && !formRounds().length ? 'Aucun tour : créez-en un dans la fiche du tournoi' : 'Choisir…' }}</option>
+        @for (r of formRounds(); track r.id) { <option [ngValue]="r.id">{{ r.round_order }}. {{ r.name }}</option> }
+      </select>
+    </label>
+    <label><span>Équipe 1 <b aria-hidden="true">*</b></span>
+      <select name="t1" [(ngModel)]="model.team1_id" required>
+        <option [ngValue]="null">Choisir…</option>
+        @for (t of teams(); track t.id) { <option [ngValue]="t.id" [disabled]="t.id === model.team2_id">{{ t.name }}</option> }
+      </select>
+    </label>
+    <label><span>Équipe 2 <b aria-hidden="true">*</b></span>
+      <select name="t2" [(ngModel)]="model.team2_id" required>
+        <option [ngValue]="null">Choisir…</option>
+        @for (t of teams(); track t.id) { <option [ngValue]="t.id" [disabled]="t.id === model.team1_id">{{ t.name }}</option> }
+      </select>
+    </label>
+    <label><span>Date</span><input type="date" name="date" [(ngModel)]="model.date" /></label>
+    <label><span>Statut</span>
+      <select name="status" [(ngModel)]="model.status">
+        @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+      </select>
+    </label>
+    <div class="form-actions wide">
+      <button type="button" class="btn ghost" (click)="formOpen.set(false)">Annuler</button>
+      <button type="submit" class="btn primary" [disabled]="saving()">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+    </div>
+  </form>
+}
+
+<div class="toolbar">
+  <div class="seg" role="group" aria-label="Filtrer par statut">
+    <button class="seg-btn" [class.on]="statusFilter() === ''" (click)="statusFilter.set('')">Tous <i>{{ countFor('') }}</i></button>
+    @for (s of statuses; track s.value) {
+      <button class="seg-btn" [class.on]="statusFilter() === s.value" (click)="statusFilter.set(s.value)">{{ s.label }} <i>{{ countFor(s.value) }}</i></button>
+    }
+  </div>
+</div>
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }} <button class="btn small ghost" (click)="load()">Réessayer</button></div>
+}
+
+@if (loading()) {
+  <div class="panel skeleton tall"></div>
+} @else if (visible().length === 0) {
+  <div class="panel empty-state">
+    <p class="empty-title">Aucun match.</p>
+    <p class="muted">Créez un tour dans la <a routerLink="/tournaments/list">fiche d’un tournoi</a>, puis programmez un match.</p>
+  </div>
+} @else {
+  <ul class="panel match-list standalone">
+    @for (m of visible(); track m.id) {
+      <li class="scoreline" [attr.data-status]="m.status">
+        <span class="when">
+          {{ fmtDate(m.date, true) }}
+          <small><a [routerLink]="['/tournaments/list', m.tournament_id]">{{ tournamentName().get(m.tournament_id) ?? 'Tournoi' }}</a> · {{ m.round_name }}</small>
+        </span>
+        <span class="side home" [class.win]="winner(m) === 1"><app-team-badge [name]="m.team1_name" /> {{ m.team1_name }}</span>
+        @if (canWrite()) {
+          <form class="score-edit" (ngSubmit)="saveScore(m)">
+            <input [name]="'s' + m.id" [(ngModel)]="scores[m.id]" placeholder="– : –" aria-label="Score" />
+            <button class="btn small primary" type="submit">OK</button>
+          </form>
+        } @else {
+          <span class="score">{{ m.score || 'vs' }}</span>
+        }
+        <span class="side away" [class.win]="winner(m) === 2">{{ m.team2_name }} <app-team-badge [name]="m.team2_name" /></span>
+        <app-status [value]="m.status" />
+        @if (canWrite()) {
+          <span class="row-actions">
+            <button class="btn small ghost" (click)="openEdit(m)">Modifier</button>
+            <button class="icon-btn" (click)="remove(m)" aria-label="Supprimer le match">×</button>
+          </span>
+        }
+      </li>
+    }
+  </ul>
+}
