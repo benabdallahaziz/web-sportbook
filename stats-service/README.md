@@ -9,7 +9,11 @@ docker run -p 8088:8088 stats-service
 ## Routes
 | Méthode | Route | Description |
 |---|---|---|
-| POST | /api/stats/events | Enregistrer un événement, corps : {"type":"booking_created"} |
+| POST | /api/stats/events | Créer un événement : {"type":"booking_created","description":"..."} |
+| GET | /api/stats/events | Lister les événements |
+| GET | /api/stats/events/{id} | Voir un événement |
+| PUT | /api/stats/events/{id} | Modifier un événement |
+| DELETE | /api/stats/events/{id} | Supprimer un événement |
 | GET | /api/stats | Voir tous les compteurs |
 | GET | /api/stats/{type} | Voir le compteur d'un type |
 
