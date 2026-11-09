@@ -1,0 +1,118 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Tournois & événements</p>
+    <h1>Tournois</h1>
+    <p class="muted">{{ access.isAdmin() ? 'Créez une compétition, inscrivez les équipes, planifiez les matchs.' : 'Proposez un tournoi : il sera publié après validation par un administrateur.' }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" routerLink="/tournaments/ranking">Classement</a>
+    @if (access.isAdmin()) {
+      <a class="btn ghost" routerLink="/tournaments/approvals">À valider @if (pendingCount()) { <span class="count">{{ pendingCount() }}</span> }</a>
+    }
+    @if (access.isLoggedIn()) {
+      <button class="btn primary" (click)="openCreate()">{{ access.isAdmin() ? '+ Nouveau tournoi' : '+ Proposer un tournoi' }}</button>
+    }
+  </div>
+</header>
+
+@if (access.isAdmin()) {
+<section class="kpis" aria-label="Chiffres clés">
+  <div class="kpi"><span class="kpi-value">{{ kpis().total }}</span><span class="kpi-label">tournois</span></div>
+  <div class="kpi accent"><span class="kpi-value">{{ kpis().ongoing }}</span><span class="kpi-label">en cours</span></div>
+  <div class="kpi"><span class="kpi-value">{{ kpis().teams }}</span><span class="kpi-label">équipes</span></div>
+  <div class="kpi"><span class="kpi-value">{{ kpis().played }}<small>/{{ kpis().matches }}</small></span><span class="kpi-label">matchs joués</span></div>
+</section>
+}
+
+@if (formOpen()) {
+  <form class="panel form-grid form-card" (ngSubmit)="save()" #f="ngForm">
+    <h2>{{ editingId() ? 'Modifier le tournoi' : access.isAdmin() ? 'Nouveau tournoi' : 'Proposer un tournoi' }}</h2>
+    @if (!access.isAdmin()) {
+      <p class="notice wide">Votre proposition sera visible par vous seul jusqu’à sa validation par un administrateur.</p>
+    }
+    @if (formError(); as err) {
+      <div class="alert wide" role="alert">
+        <strong>{{ err.message }}</strong>
+        @if (err.details.length) { <ul>@for (d of err.details; track d) { <li>{{ d }}</li> }</ul> }
+      </div>
+    }
+    <label class="wide"><span>Nom <b aria-hidden="true">*</b></span>
+      <input name="name" [(ngModel)]="model.name" required maxlength="150" placeholder="Tournoi de printemps 2027" /></label>
+    <label><span>Début</span><input type="date" name="start_date" [(ngModel)]="model.start_date" /></label>
+    <label><span>Fin</span><input type="date" name="end_date" [(ngModel)]="model.end_date" /></label>
+    <fieldset class="wide seg-field">
+      <legend>Statut</legend>
+      <div class="seg">
+        @for (s of statuses; track s.value) {
+          <label class="seg-opt"><input type="radio" name="status" [value]="s.value" [(ngModel)]="model.status" /><span>{{ s.label }}</span></label>
+        }
+      </div>
+    </fieldset>
+    <div class="form-actions wide">
+      <button type="button" class="btn ghost" (click)="formOpen.set(false)">Annuler</button>
+      <button type="submit" class="btn primary" [disabled]="f.invalid || saving()">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+    </div>
+  </form>
+}
+
+@if (!access.isAdmin() && myProposals().length) {
+  <div class="notice">
+    Vous avez {{ myProposals().length }} proposition(s) en cours de traitement@if (myRejected()) {, dont <strong>{{ myRejected() }} refusée(s)</strong> : corrigez-les pour les soumettre à nouveau}.
+  </div>
+}
+
+<div class="toolbar">
+  <div class="seg" role="group" aria-label="Filtrer par statut">
+    <button class="seg-btn" [class.on]="statusFilter() === ''" (click)="statusFilter.set('')">Tous <i>{{ countFor('') }}</i></button>
+    @for (s of statuses; track s.value) {
+      <button class="seg-btn" [class.on]="statusFilter() === s.value" (click)="statusFilter.set(s.value)">{{ s.label }} <i>{{ countFor(s.value) }}</i></button>
+    }
+  </div>
+  <input class="search" type="search" placeholder="Rechercher un tournoi" [ngModel]="query()" (ngModelChange)="query.set($event)" aria-label="Rechercher un tournoi" />
+</div>
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }} <button class="btn small ghost" (click)="load()">Réessayer</button></div>
+}
+
+@if (loading()) {
+  <div class="card-grid">@for (i of [1, 2, 3]; track i) { <div class="t-card skeleton"></div> }</div>
+} @else if (visible().length === 0) {
+  <div class="panel empty-state">
+    <p class="empty-title">{{ tournaments().length ? 'Aucun tournoi ne correspond.' : 'Aucun tournoi pour le moment.' }}</p>
+    @if (access.isLoggedIn() && !tournaments().length) { <button class="btn primary" (click)="openCreate()">Créer le premier tournoi</button> }
+  </div>
+} @else {
+  <div class="card-grid">
+    @for (t of visible(); track t.id) {
+      <article class="t-card" [attr.data-status]="t.status" [attr.data-approval]="t.approval_status">
+        <div class="t-card-top">
+          <span class="pills">
+            <app-status [value]="t.status" />
+            @if (t.approval_status !== 'APPROVED') { <app-status [value]="t.approval_status" /> }
+          </span>
+          <span class="muted small">#{{ t.id }}</span>
+        </div>
+        <h2><a [routerLink]="['/tournaments/list', t.id]">{{ t.name }}</a></h2>
+        <p class="t-dates">
+          {{ fmtDate(t.start_date) }} → {{ fmtDate(t.end_date) }}
+          @if (durationDays(t.start_date, t.end_date); as d) { <span class="muted"> · {{ d }} j</span> }
+        </p>
+        <p class="muted small">{{ matchCount().get(t.id) ?? 0 }} match(s)@if (access.isOwner(t)) { · <strong>ma proposition</strong> }</p>
+        @if (t.approval_status === 'REJECTED' && t.rejection_reason) {
+          <p class="reject-reason">Motif du refus : {{ t.rejection_reason }}</p>
+        }
+        <div class="t-card-actions">
+          <a class="btn small primary" [routerLink]="['/tournaments/list', t.id]">Ouvrir</a>
+          @if (access.canModify(t)) {
+            <select class="mini-select" [ngModel]="t.status" (ngModelChange)="changeStatus(t, $event)" aria-label="Changer le statut">
+              @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+            </select>
+            <button class="btn small ghost" (click)="openEdit(t)">Modifier</button>
+            <button class="icon-btn push-right" (click)="remove(t)" aria-label="Supprimer le tournoi" title="Supprimer">×</button>
+          }
+        </div>
+      </article>
+    }
+  </div>
+}

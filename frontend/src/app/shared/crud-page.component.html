@@ -1,0 +1,75 @@
+<header class="page-head">
+  <div>
+    <h1>{{ cfg.title }}</h1>
+    @if (cfg.subtitle) { <p class="muted">{{ cfg.subtitle }}</p> }
+  </div>
+  <div class="actions">
+    <input class="search" type="search" placeholder="Filtrer la liste" [ngModel]="filter()" (ngModelChange)="filter.set($event)" aria-label="Filtrer la liste" />
+    <button class="btn ghost" (click)="load()">Actualiser</button>
+    @if (canWrite()) { <button class="btn primary" (click)="openForm()">Ajouter : {{ cfg.itemLabel }}</button> }
+  </div>
+</header>
+
+@if (error()) { <div class="alert" role="alert">{{ error() }}</div> }
+
+@if (editing()) {
+  <form class="panel form-grid" (ngSubmit)="save()" #f="ngForm">
+    <h2>{{ model['id'] ? 'Modifier' : 'Nouveau' }} : {{ cfg.itemLabel }}</h2>
+    @for (fld of cfg.fields; track fld.key) {
+      @if (!fld.currentUserId) {
+        <label [class.wide]="fld.type === 'textarea'">
+          <span>{{ fld.label }}@if (fld.required) { <b aria-hidden="true"> *</b> }</span>
+          @switch (fld.type) {
+            @case ('select') {
+              <select [name]="fld.key" [(ngModel)]="model[fld.key]" [required]="!!fld.required">
+                @for (o of fld.options; track o) { <option [value]="o">{{ o }}</option> }
+              </select>
+            }
+            @case ('textarea') {
+              <textarea rows="3" [name]="fld.key" [(ngModel)]="model[fld.key]" [required]="!!fld.required"></textarea>
+            }
+            @default {
+              <input [type]="fld.type" [name]="fld.key" [(ngModel)]="model[fld.key]" [required]="!!fld.required" [attr.step]="fld.type === 'number' ? 'any' : null" />
+            }
+          }
+        </label>
+      }
+    }
+    <div class="form-actions wide">
+      <button type="button" class="btn ghost" (click)="closeForm()">Annuler</button>
+      <button type="submit" class="btn primary" [disabled]="f.invalid || saving()">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+    </div>
+  </form>
+}
+
+<div class="panel table-wrap">
+  @if (loading()) {
+    <p class="empty">Chargement…</p>
+  } @else if (visibleRows().length === 0) {
+    <p class="empty">Aucun élément pour le moment.@if (canWrite()) { Utilisez « Ajouter » pour créer le premier. }</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          @for (fld of tableFields; track fld.key) { <th>{{ fld.label }}</th> }
+          @if (canWrite()) { <th class="end">Actions</th> }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of visibleRows(); track row.id) {
+          <tr>
+            <td class="muted">{{ row.id }}</td>
+            @for (fld of tableFields; track fld.key) { <td>{{ display(row, fld.key) }}</td> }
+            @if (canWrite()) {
+              <td class="end">
+                <button class="btn small ghost" (click)="openForm(row)">Modifier</button>
+                <button class="btn small danger" (click)="remove(row)">Supprimer</button>
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

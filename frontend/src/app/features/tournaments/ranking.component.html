@@ -1,0 +1,112 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Statistiques · microservice Python</p>
+    <h1>Classement & pronostics</h1>
+    <p class="muted">Classement Elo recalculé après chaque match terminé, et probabilités de victoire.</p>
+  </div>
+  <div class="actions">
+    <select [(ngModel)]="tournamentId" (ngModelChange)="load()" aria-label="Tournoi">
+      <option [ngValue]="null">Tous les tournois</option>
+      @for (t of tournaments(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
+    </select>
+    <div class="seg" role="group" aria-label="Trier par">
+      <button class="seg-btn" [class.on]="orderBy === 'elo'" (click)="orderBy = 'elo'; load()">Elo</button>
+      <button class="seg-btn" [class.on]="orderBy === 'points'" (click)="orderBy = 'points'; load()">Points</button>
+    </div>
+    @if (access.isAdmin()) {
+      <button class="btn ghost" (click)="sync()" [disabled]="syncing()" title="POST /api/stats/sync">
+        {{ syncing() ? 'Synchronisation…' : 'Resynchroniser' }}
+      </button>
+    }
+  </div>
+</header>
+
+@if (error(); as err) {
+  <div class="alert" role="alert">
+    <strong>Le service de statistiques ne répond pas.</strong> {{ err.message }}
+    <button class="btn small ghost" (click)="load()">Réessayer</button>
+  </div>
+}
+
+<div class="ranking-layout">
+  <div>
+    @if (podium().length) {
+      <section class="podium" aria-label="Podium">
+        @for (r of podium(); track r.team_id) {
+          <div class="step" [attr.data-pos]="r.position">
+            <app-team-badge [name]="r.team_name" />
+            <strong>{{ r.team_name ?? 'Équipe #' + r.team_id }}</strong>
+            <span class="muted small">{{ orderBy === 'elo' ? r.elo.toFixed(0) + ' Elo' : r.points + ' pts' }}</span>
+            <div class="block">{{ r.position }}</div>
+          </div>
+        }
+      </section>
+    }
+
+    <section class="panel">
+      @if (loading()) {
+        <p class="empty">Calcul du classement…</p>
+      } @else {
+        @if (data(); as d) {
+          <p class="muted small source">
+            {{ d.matches_counted }} match(s) terminé(s) pris en compte
+            @if (!d.team_names_available) { · <span class="warn">noms indisponibles (service des tournois injoignable)</span> }
+          </p>
+          <app-ranking-table [rows]="d.ranking" [orderBy]="d.order_by" />
+        }
+      }
+    </section>
+  </div>
+
+  <aside class="panel predict-card">
+    <h2>Pronostic</h2>
+    <p class="muted small">Qui gagnerait si ces deux équipes se rencontraient ?</p>
+    <form class="predict-form" (ngSubmit)="predict()">
+      <label><span>Équipe 1</span>
+        <select name="t1" [(ngModel)]="team1">
+          <option [ngValue]="null">Choisir…</option>
+          @for (t of teams(); track t.id) { <option [ngValue]="t.id" [disabled]="t.id === team2">{{ t.name }}</option> }
+        </select>
+      </label>
+      <label><span>Équipe 2</span>
+        <select name="t2" [(ngModel)]="team2">
+          <option [ngValue]="null">Choisir…</option>
+          @for (t of teams(); track t.id) { <option [ngValue]="t.id" [disabled]="t.id === team1">{{ t.name }}</option> }
+        </select>
+      </label>
+      <button class="btn primary" type="submit" [disabled]="!team1 || !team2 || predicting()">
+        {{ predicting() ? 'Calcul…' : 'Calculer' }}
+      </button>
+    </form>
+
+    @if (prediction(); as p) {
+      <div class="prediction">
+        <div class="duel">
+          <div [class.fav]="p.favorite_team_id === p.team1.team_id">
+            <app-team-badge [name]="name(p.team1.team_id, p.team1.team_name)" />
+            <strong>{{ name(p.team1.team_id, p.team1.team_name) }}</strong>
+            <span class="big">{{ pct(p.team1.win_probability) }} %</span>
+            <span class="muted small">Elo {{ p.team1.elo.toFixed(0) }}</span>
+          </div>
+          <div [class.fav]="p.favorite_team_id === p.team2.team_id">
+            <app-team-badge [name]="name(p.team2.team_id, p.team2.team_name)" />
+            <strong>{{ name(p.team2.team_id, p.team2.team_name) }}</strong>
+            <span class="big">{{ pct(p.team2.win_probability) }} %</span>
+            <span class="muted small">Elo {{ p.team2.elo.toFixed(0) }}</span>
+          </div>
+        </div>
+        <div class="prob-bar" role="img" [attr.aria-label]="pct(p.team1.win_probability) + ' % contre ' + pct(p.team2.win_probability) + ' %'">
+          <span class="p1" [style.width.%]="pct(p.team1.win_probability)"></span>
+          <span class="p2" [style.width.%]="pct(p.team2.win_probability)"></span>
+        </div>
+        <p class="verdict">
+          {{ p.favorite_team_id ? 'Favori : ' + name(p.favorite_team_id, p.favorite_team_id === p.team1.team_id ? p.team1.team_name : p.team2.team_name) : 'Match très équilibré' }}
+        </p>
+        <details>
+          <summary>Comment est-ce calculé ?</summary>
+          <p class="small">{{ p.explanation }}</p>
+        </details>
+      </div>
+    }
+  </aside>
+</div>
