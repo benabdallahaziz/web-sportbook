@@ -2,11 +2,11 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { AuthService } from '../../core/auth.service';
 import { ApiError } from '../../core/error.interceptor';
 import { NotifyService } from '../../core/notify.service';
+import { TournamentAccess } from './tournament-access.service';
 import { TournamentApi } from './tournament-api.service';
-import { MATCH_STATUSES, Match, MatchInput, MatchStatus, Round, Team, Tournament } from './tournament.models';
+import { ApprovalStatus, MATCH_STATUSES, Match, MatchInput, MatchStatus, Round, Team, Tournament } from './tournament.models';
 import { StatusPillComponent, TeamBadgeComponent, fmtDate } from './tournament-ui';
 
 @Component({
@@ -17,11 +17,14 @@ import { StatusPillComponent, TeamBadgeComponent, fmtDate } from './tournament-u
 export class MatchesComponent implements OnInit {
   private api = inject(TournamentApi);
   private notify = inject(NotifyService);
-  private auth = inject(AuthService);
+  readonly access = inject(TournamentAccess);
 
   readonly statuses = MATCH_STATUSES;
   readonly fmtDate = fmtDate;
-  canWrite = computed(() => this.auth.hasRole('ADMIN', 'GERANT'));
+  /** Tournois où l'utilisateur peut planifier : validés, ou les siens, ou tous pour l'admin. */
+  plannable = computed(() =>
+    this.tournaments().filter((t) => this.access.isAdmin() || t.approval_status === 'APPROVED' || this.access.isOwner(t)),
+  );
 
   tournaments = signal<Tournament[]>([]);
   teams = signal<Team[]>([]);
@@ -127,7 +130,8 @@ export class MatchesComponent implements OnInit {
       next: (m) => {
         this.saving.set(false);
         this.formOpen.set(false);
-        this.notify.success(`${id ? 'Match modifié' : 'Match programmé'} : ${m.team1_name} – ${m.team2_name}.`);
+        if (m.approval_status === 'APPROVED') this.notify.success(`${id ? 'Match modifié' : 'Match programmé'} : ${m.team1_name} – ${m.team2_name}.`);
+        else this.notify.info(`Match ${m.team1_name} – ${m.team2_name} envoyé pour validation.`);
         this.load();
       },
       error: (e: ApiError) => {
@@ -142,6 +146,19 @@ export class MatchesComponent implements OnInit {
       next: (u) => {
         this.matches.update((list) => list.map((x) => (x.id === m.id ? u : x)));
         this.notify.success(`Score enregistré : ${u.team1_name} ${u.score} ${u.team2_name}.`);
+      },
+      error: (e) => this.notify.error(e),
+    });
+  }
+
+  /** Décision de l'administrateur depuis la liste. */
+  decide(m: Match, decision: Exclude<ApprovalStatus, 'PENDING'>) {
+    const reason = decision === 'REJECTED' ? prompt('Motif du refus du match :', '') : '';
+    if (reason === null) return;
+    this.api.decideMatch(m.id, decision, reason).subscribe({
+      next: (u) => {
+        this.matches.update((list) => list.map((x) => (x.id === m.id ? u : x)));
+        this.notify.success(decision === 'APPROVED' ? 'Match validé.' : 'Match refusé.');
       },
       error: (e) => this.notify.error(e),
     });

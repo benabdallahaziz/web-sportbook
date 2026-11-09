@@ -173,13 +173,17 @@ CREATE TABLE IF NOT EXISTS tournament (
   name VARCHAR(150) NOT NULL,
   start_date DATE,
   end_date DATE,
-  status VARCHAR(30) NOT NULL DEFAULT 'PLANNED'
+  status VARCHAR(30) NOT NULL DEFAULT 'PLANNED',
+  approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',  -- PENDING, APPROVED, REJECTED (validation admin)
+  created_by BIGINT NULL,                                   -- id de l'utilisateur auteur (microservice Identity)
+  rejection_reason VARCHAR(255) NULL
 );
 
 CREATE TABLE IF NOT EXISTS team (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  members INT NOT NULL DEFAULT 0
+  members INT NOT NULL DEFAULT 0,
+  created_by BIGINT NULL                  -- propriétaire (microservice Identity)
 );
 
 CREATE TABLE IF NOT EXISTS registration (
@@ -209,6 +213,9 @@ CREATE TABLE IF NOT EXISTS matches (
   round_id BIGINT NOT NULL,
   team1_id BIGINT NOT NULL,
   team2_id BIGINT NOT NULL,
+  approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',  -- PENDING, APPROVED, REJECTED (validation admin)
+  created_by BIGINT NULL,
+  rejection_reason VARCHAR(255) NULL,
   CONSTRAINT fk_match_round FOREIGN KEY (round_id) REFERENCES round(id) ON DELETE CASCADE,
   CONSTRAINT fk_match_t1 FOREIGN KEY (team1_id) REFERENCES team(id),
   CONSTRAINT fk_match_t2 FOREIGN KEY (team2_id) REFERENCES team(id)

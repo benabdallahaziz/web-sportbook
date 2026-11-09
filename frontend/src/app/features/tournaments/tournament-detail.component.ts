@@ -2,13 +2,13 @@ import { Component, OnInit, computed, inject, input, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { AuthService } from '../../core/auth.service';
 import { ApiError } from '../../core/error.interceptor';
 import { NotifyService } from '../../core/notify.service';
 import { RankingTableComponent } from './ranking-table.component';
+import { TournamentAccess } from './tournament-access.service';
 import { TournamentApi } from './tournament-api.service';
 import {
-  Match, RankingResponse, RegisteredTeam, Round, TOURNAMENT_STATUSES, Team, Tournament, TournamentStatus,
+  ApprovalStatus, Match, RankingResponse, RegisteredTeam, Round, TOURNAMENT_STATUSES, Team, Tournament, TournamentStatus,
 } from './tournament.models';
 import { StatusPillComponent, TeamBadgeComponent, durationDays, fmtDate } from './tournament-ui';
 
@@ -26,13 +26,21 @@ export class TournamentDetailComponent implements OnInit {
 
   private api = inject(TournamentApi);
   private notify = inject(NotifyService);
-  private auth = inject(AuthService);
+  readonly access = inject(TournamentAccess);
   private router = inject(Router);
 
   readonly statuses = TOURNAMENT_STATUSES;
   readonly fmtDate = fmtDate;
-  canWrite = computed(() => this.auth.hasRole('ADMIN', 'GERANT'));
-  canRegister = computed(() => this.auth.hasRole('ADMIN', 'GERANT', 'SPORTIF'));
+  /** Ajouter des tours : l'admin ou l'organisateur (auteur) du tournoi. */
+  canOrganize = computed(() => {
+    const t = this.tournament();
+    return !!t && (this.access.isAdmin() || this.access.isOwner(t));
+  });
+  /** Proposer un match : tournoi validé (ou le sien, ou admin). */
+  canPlan = computed(() => {
+    const t = this.tournament();
+    return !!t && this.access.isLoggedIn() && (t.approval_status === 'APPROVED' || this.canOrganize());
+  });
   tid = computed(() => Number(this.id()));
 
   tournament = signal<Tournament | null>(null);
@@ -61,9 +69,10 @@ export class TournamentDetailComponent implements OnInit {
     return t ? durationDays(t.start_date, t.end_date) : null;
   });
 
+  /** Équipes que l'utilisateur peut inscrire : les siennes (toutes pour l'admin), pas encore inscrites. */
   available = computed(() => {
     const ids = new Set(this.registered().map((t) => t.id));
-    return this.allTeams().filter((t) => !ids.has(t.id));
+    return this.allTeams().filter((t) => !ids.has(t.id) && this.access.canManageTeam(t));
   });
 
   /** Équipes proposées pour un match : les inscrites, ou toutes s'il y en a moins de 2. */
@@ -150,11 +159,48 @@ export class TournamentDetailComponent implements OnInit {
   }
 
   // ── Inscriptions ──
+  // ── Décisions de l'administrateur ──
+  decideTournament(decision: Exclude<ApprovalStatus, 'PENDING'>) {
+    const t = this.tournament();
+    if (!t) return;
+    const reason = decision === 'REJECTED' ? prompt('Motif du refus (affiché à l’auteur) :', '') : '';
+    if (reason === null) return;
+    this.api.decideTournament(t.id, decision, reason).subscribe({
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.notify.success(decision === 'APPROVED' ? 'Tournoi validé : il est maintenant public.' : 'Tournoi refusé.');
+      },
+      error: (e) => this.notify.error(e),
+    });
+  }
+
+  decideMatch(m: Match, decision: Exclude<ApprovalStatus, 'PENDING'>) {
+    const reason = decision === 'REJECTED' ? prompt('Motif du refus du match :', '') : '';
+    if (reason === null) return;
+    this.api.decideMatch(m.id, decision, reason).subscribe({
+      next: (updated) => {
+        this.matches.update((list) => list.map((x) => (x.id === m.id ? updated : x)));
+        this.notify.success(decision === 'APPROVED' ? 'Match validé.' : 'Match refusé.');
+      },
+      error: (e) => this.notify.error(e),
+    });
+  }
+
+  decideRegistration(team: RegisteredTeam, status: 'CONFIRMED' | 'REJECTED') {
+    this.api.decideRegistration(this.tid(), team.id, status).subscribe({
+      next: () => {
+        this.registered.update((list) => list.map((x) => (x.id === team.id ? { ...x, registration_status: status } : x)));
+        this.notify.success(`Inscription de « ${team.name} » ${status === 'CONFIRMED' ? 'confirmée' : 'refusée'}.`);
+      },
+      error: (e) => this.notify.error(e),
+    });
+  }
+
   register() {
     if (!this.teamToRegister) return;
     this.api.register(this.tid(), Number(this.teamToRegister)).subscribe({
       next: () => {
-        this.notify.success('Équipe inscrite.');
+        this.notify.success(this.access.isAdmin() ? 'Équipe inscrite.' : 'Demande d’inscription envoyée : un administrateur doit la confirmer.');
         this.teamToRegister = null;
         this.load();
       },
@@ -204,7 +250,8 @@ export class TournamentDetailComponent implements OnInit {
       })
       .subscribe({
         next: (m) => {
-          this.notify.success(`Match ${m.team1_name} – ${m.team2_name} programmé.`);
+          if (m.approval_status === 'APPROVED') this.notify.success(`Match ${m.team1_name} – ${m.team2_name} programmé.`);
+          else this.notify.info(`Match ${m.team1_name} – ${m.team2_name} proposé : en attente de validation.`);
           this.draftRound.set(null);
           this.load();
         },

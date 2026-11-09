@@ -49,7 +49,7 @@ export class RegisterComponent {
       // Le backend ne renvoie pas de jeton : on connecte l'utilisateur juste après l'inscription.
       next: () =>
         this.auth.login(this.m.email, this.m.password).subscribe({
-          next: () => this.router.navigateByUrl('/dashboard'),
+          next: () => this.router.navigateByUrl('/'),
           error: () => this.router.navigateByUrl('/login'),
         }),
       error: (e) => {

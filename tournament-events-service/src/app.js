@@ -15,7 +15,7 @@ app.use(express.json());   // lit les corps JSON (Content-Type: application/json
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-Id,X-User-Roles');
   res.setHeader('Access-Control-Expose-Headers', 'Location');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();

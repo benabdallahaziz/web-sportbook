@@ -2,10 +2,21 @@ require('dotenv').config();
 const app = require('./src/app');
 const { startEurekaClient } = require('./src/config/eureka');
 const rabbitmq = require('./src/messaging/publisher');
+const { migrate } = require('./src/config/migrate');
 
 const PORT = process.env.PORT || 8086;
 
-app.listen(PORT, () => {
+async function start() {
+  // Ajoute les colonnes du circuit de validation si la base est ancienne
+  try {
+    await migrate();
+  } catch (err) {
+    console.error('⚠️  Migration impossible (MySQL démarré ?) :', err.message || err.code);
+  }
+  app.listen(PORT, onListening);
+}
+
+function onListening() {
   console.log('═══════════════════════════════════════════════');
   console.log(`🏆  Tournament & Events Service`);
   console.log(`🚀  Démarré sur http://localhost:${PORT}`);
@@ -22,6 +33,8 @@ app.listen(PORT, () => {
   console.log(`    GET/POST              /api/matches`);
   console.log(`    GET/PUT/PATCH/DELETE  /api/matches/:id`);
   console.log(`    PATCH                 /api/matches/:id/score`);
+  console.log(`    PATCH  (admin)        /api/tournaments/:id/approval · /api/matches/:id/approval`);
+  console.log(`    GET    (admin)        /api/tournaments/registrations`);
   console.log(`    GET                   /health`);
   console.log('═══════════════════════════════════════════════');
 
@@ -30,5 +43,7 @@ app.listen(PORT, () => {
 
   // Connexion au broker de messages (non bloquante, reconnexion automatique)
   rabbitmq.connect();
-});
+}
+
+start();
 

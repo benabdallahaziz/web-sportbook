@@ -1,8 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../core/auth.service';
 import { ApiError } from '../../core/error.interceptor';
 import { NotifyService } from '../../core/notify.service';
+import { TournamentAccess } from './tournament-access.service';
 import { TournamentApi } from './tournament-api.service';
 import { Team, TeamInput, TeamStats } from './tournament.models';
 import { FormDotsComponent, TeamBadgeComponent, fmtDate } from './tournament-ui';
@@ -15,10 +15,12 @@ import { FormDotsComponent, TeamBadgeComponent, fmtDate } from './tournament-ui'
 export class TeamsComponent implements OnInit {
   private api = inject(TournamentApi);
   private notify = inject(NotifyService);
-  private auth = inject(AuthService);
+  readonly access = inject(TournamentAccess);
 
   readonly fmtDate = fmtDate;
-  canWrite = computed(() => this.auth.hasRole('ADMIN', 'GERANT', 'SPORTIF'));
+  /** Filtre « Mes équipes » (utilisateur). */
+  onlyMine = signal(false);
+  myCount = computed(() => this.teams().filter((t) => this.access.isOwner(t)).length);
 
   teams = signal<Team[]>([]);
   loading = signal(true);
@@ -38,7 +40,7 @@ export class TeamsComponent implements OnInit {
 
   visible = computed(() => {
     const q = this.query().trim().toLowerCase();
-    return this.teams().filter((t) => !q || t.name.toLowerCase().includes(q));
+    return this.teams().filter((t) => (!q || t.name.toLowerCase().includes(q)) && (!this.onlyMine() || this.access.isOwner(t)));
   });
 
   /** Courbe Elo : points SVG (viewBox 300 × 80). */

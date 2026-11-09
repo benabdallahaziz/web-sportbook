@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../core/api.service';
 import {
-  Match, MatchInput, Prediction, RankingResponse, RegisteredTeam, Round, SyncResult,
+  ApprovalStatus, Match, MatchInput, PendingRegistration, Prediction, RankingResponse, RegisteredTeam, Round, SyncResult,
   Team, TeamInput, TeamStats, Tournament, TournamentInput,
 } from './tournament.models';
 
@@ -23,6 +23,20 @@ export class TournamentApi {
   /** PATCH : modification partielle (ex. seulement le statut). */
   patchTournament(id: number, body: Partial<TournamentInput>) { return this.api.patch<Tournament>(`/api/tournaments/${id}`, body); }
   deleteTournament(id: number) { return this.api.remove('/api/tournaments', id); }
+
+  // ── Validation (administrateur) ──
+  pendingTournaments() { return this.api.list<Tournament>('/api/tournaments?approval=PENDING'); }
+  pendingMatches() { return this.api.list<Match>('/api/matches?approval=PENDING'); }
+  pendingRegistrations() { return this.api.list<PendingRegistration>('/api/tournaments/registrations?status=PENDING'); }
+  decideTournament(id: number, decision: Exclude<ApprovalStatus, 'PENDING'>, reason?: string) {
+    return this.api.patch<Tournament>(`/api/tournaments/${id}/approval`, { decision, reason: reason || null });
+  }
+  decideMatch(id: number, decision: Exclude<ApprovalStatus, 'PENDING'>, reason?: string) {
+    return this.api.patch<Match>(`/api/matches/${id}/approval`, { decision, reason: reason || null });
+  }
+  decideRegistration(tournamentId: number, teamId: number, status: 'CONFIRMED' | 'REJECTED') {
+    return this.api.patch(`/api/tournaments/${tournamentId}/teams/${teamId}`, { status });
+  }
 
   // ── Inscriptions (sous-ressource) ──
   registeredTeams(tournamentId: number) { return this.api.list<RegisteredTeam>(`/api/tournaments/${tournamentId}/teams`); }

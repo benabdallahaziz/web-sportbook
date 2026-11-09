@@ -2,11 +2,17 @@
   <div>
     <p class="eyebrow">Tournois & événements</p>
     <h1>Équipes</h1>
-    <p class="muted">{{ teams().length }} équipe(s). Ouvrez une fiche pour voir son évolution Elo.</p>
+    <p class="muted">{{ teams().length }} équipe(s){{ access.isAdmin() ? '' : ', dont ' + myCount() + ' à vous' }}. Ouvrez une fiche pour voir son évolution Elo.</p>
   </div>
   <div class="actions">
     <input class="search" type="search" placeholder="Rechercher une équipe" [ngModel]="query()" (ngModelChange)="query.set($event)" aria-label="Rechercher une équipe" />
-    @if (canWrite()) { <button class="btn primary" (click)="openCreate()">+ Nouvelle équipe</button> }
+    @if (!access.isAdmin()) {
+      <div class="seg" role="group" aria-label="Filtrer les équipes">
+        <button class="seg-btn" [class.on]="!onlyMine()" (click)="onlyMine.set(false)">Toutes</button>
+        <button class="seg-btn" [class.on]="onlyMine()" (click)="onlyMine.set(true)">Mes équipes <i>{{ myCount() }}</i></button>
+      </div>
+    }
+    @if (access.isLoggedIn()) { <button class="btn primary" (click)="openCreate()">+ Nouvelle équipe</button> }
   </div>
 </header>
 
@@ -45,11 +51,11 @@
             <app-team-badge [name]="t.name" />
             <div class="team-info">
               <strong>{{ t.name }}</strong>
-              <span class="muted small">{{ t.members }} joueur(s) · #{{ t.id }}</span>
+              <span class="muted small">{{ t.members }} joueur(s) · #{{ t.id }}@if (access.isOwner(t)) { · <span class="mine">Mon équipe</span> }</span>
             </div>
             <div class="team-actions">
               <button class="btn small ghost" (click)="openStats(t)">Fiche</button>
-              @if (canWrite()) {
+              @if (access.canManageTeam(t)) {
                 <button class="btn small ghost" (click)="openEdit(t)">Modifier</button>
                 <button class="icon-btn" (click)="remove(t)" aria-label="Supprimer">×</button>
               }

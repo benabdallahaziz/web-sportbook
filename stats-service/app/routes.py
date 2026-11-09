@@ -1,7 +1,7 @@
 """Endpoints REST du service : /api/stats/..."""
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Header, HTTPException, Path, Query
 from sqlalchemy import select
 
 from . import elo, sync, tournament_client
@@ -117,7 +117,12 @@ def predict(team1: int = Query(ge=1), team2: int = Query(ge=1),
     }
 
 
-@router.post("/sync", response_model=SyncResult, responses=ERRORS,
-             summary="Resynchroniser tous les résultats via l'API REST du service des tournois")
-def sync_now():
+@router.post("/sync", response_model=SyncResult,
+             responses={**ERRORS, 403: {"model": ErrorResponse, "description": "Réservé à un administrateur"}},
+             summary="(Admin) Resynchroniser tous les résultats via l'API REST du service des tournois")
+def sync_now(x_user_roles: str | None = Header(None, alias="X-User-Roles",
+                                                description="Rôles de l'utilisateur connecté (ADMIN requis)")):
+    roles = {r.strip().upper() for r in (x_user_roles or "").split(",")}
+    if "ADMIN" not in roles:
+        raise HTTPException(403, "Action réservée à un administrateur")
     return sync.full_sync()

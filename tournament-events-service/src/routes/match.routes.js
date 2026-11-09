@@ -136,4 +136,32 @@ router.route('/:id')
  */
 router.patch('/:id/score', ctrl.updateScore);
 
+/**
+ * @swagger
+ * /api/matches/{id}/approval:
+ *   patch:
+ *     summary: "(Admin) Valider ou refuser un match proposé"
+ *     description: Un match ne peut être validé que si son tournoi l'est déjà (sinon 409).
+ *     tags: [Validation]
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPath'
+ *       - $ref: '#/components/parameters/UserRoles'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/ApprovalInput' }
+ *     responses:
+ *       200:
+ *         description: Match avec son nouveau statut de validation
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Match' }
+ *       400: { $ref: '#/components/responses/BadRequest' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ *       409: { $ref: '#/components/responses/Conflict' }
+ */
+router.patch('/:id/approval', ctrl.decide);
+
 module.exports = router;

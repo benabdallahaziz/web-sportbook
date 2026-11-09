@@ -18,7 +18,10 @@ const options = {
       description:
         'Microservice SportBook : gestion des tournois, équipes, tours et matchs.\n\n' +
         '**Port :** 8086 · **Nom Eureka :** tournament-events-service\n\n' +
-        'Toutes les erreurs ont le format `{ status, message, details? }`.',
+        'Toutes les erreurs ont le format `{ status, message, details? }`.\n\n' +
+        '**Circuit de validation :** un utilisateur propose des tournois et des matchs (statut `PENDING`), ' +
+        'un administrateur les valide (`APPROVED`) ou les refuse (`REJECTED`). L’utilisateur courant est transmis ' +
+        'par les en-têtes `X-User-Id` et `X-User-Roles` (en attendant un jeton JWT).',
     },
     // URL relative : Swagger appelle le serveur qui l'a servi (pas de port en dur)
     servers: [{ url: '/', description: 'Ce service' }],
@@ -26,9 +29,18 @@ const options = {
       { name: 'Tournaments', description: 'Tournois, inscriptions et tours' },
       { name: 'Teams',       description: 'Équipes' },
       { name: 'Matches',     description: 'Matchs et scores' },
+      { name: 'Validation',  description: 'Actions réservées à l’administrateur' },
     ],
     components: {
       parameters: {
+        UserRoles: {
+          in: 'header', name: 'X-User-Roles', required: false, schema: { type: 'string', example: 'ADMIN' },
+          description: 'Rôles de l’utilisateur connecté (ADMIN, GERANT, SPORTIF), séparés par des virgules',
+        },
+        UserId: {
+          in: 'header', name: 'X-User-Id', required: false, schema: { type: 'integer', example: 1 },
+          description: 'Identifiant de l’utilisateur connecté (auteur des propositions)',
+        },
         IdPath: {
           in: 'path', name: 'id', required: true,
           schema: { type: 'integer', minimum: 1 }, description: 'Identifiant numérique',
@@ -39,6 +51,8 @@ const options = {
         BadRequest:  { description: 'Requête invalide (champ manquant, mauvais format, JSON mal formé, id non numérique)',
                        content: errorExample(400, 'Données invalides', ['"name" est obligatoire']) },
         NotFound:    { description: 'Ressource introuvable', content: errorExample(404, 'Tournoi 42 introuvable') },
+        Forbidden:   { description: 'Action non autorisée pour cet utilisateur',
+                       content: errorExample(403, 'Action réservée à un administrateur') },
         Conflict:    { description: 'Conflit avec l\'état actuel (doublon, ressource utilisée)',
                        content: errorExample(409, 'Cette équipe est déjà inscrite à ce tournoi') },
         ServerError: { description: 'Erreur interne du serveur', content: errorExample(500, 'Erreur interne du serveur') },
@@ -54,6 +68,9 @@ const options = {
             start_date: { type: 'string',  format: 'date', nullable: true, example: '2027-03-01' },
             end_date:   { type: 'string',  format: 'date', nullable: true, example: '2027-03-15' },
             status:     { type: 'string',  enum: ['PLANNED', 'ONGOING', 'FINISHED'], example: 'PLANNED' },
+            approval_status:  { $ref: '#/components/schemas/ApprovalStatus' },
+            created_by:       { type: 'integer', nullable: true, example: 12 },
+            rejection_reason: { type: 'string', nullable: true },
           },
         },
         TournamentInput: {
@@ -159,6 +176,10 @@ const options = {
             team2_name:    { type: 'string',  example: 'Team Beta' },
             round_name:    { type: 'string',  example: 'Finale' },
             tournament_id: { type: 'integer', example: 1 },
+            tournament_name: { type: 'string', example: 'Coupe de printemps' },
+            approval_status:  { $ref: '#/components/schemas/ApprovalStatus' },
+            created_by:       { type: 'integer', nullable: true, example: 12 },
+            rejection_reason: { type: 'string', nullable: true },
           },
         },
         MatchInput: {
@@ -191,6 +212,24 @@ const options = {
           properties: {
             score:  { type: 'string', pattern: '^\\d+-\\d+$', example: '3-1' },
             status: { type: 'string', enum: ['SCHEDULED', 'ONGOING', 'FINISHED'], default: 'FINISHED' },
+          },
+        },
+        ApprovalStatus: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'], example: 'PENDING' },
+        ApprovalInput: {
+          type: 'object',
+          required: ['decision'],
+          properties: {
+            decision: { type: 'string', enum: ['APPROVED', 'REJECTED'] },
+            reason:   { type: 'string', maxLength: 255, description: 'Motif du refus (affiché à l’auteur)' },
+          },
+          example: { decision: 'REJECTED', reason: 'Dates en conflit avec un autre tournoi' },
+        },
+        PendingRegistration: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer' }, tournament_id: { type: 'integer' }, tournament_name: { type: 'string' },
+            team_id: { type: 'integer' }, team_name: { type: 'string' }, members: { type: 'integer' },
+            registration_date: { type: 'string', format: 'date' }, status: { type: 'string', example: 'PENDING' },
           },
         },
         Error: {

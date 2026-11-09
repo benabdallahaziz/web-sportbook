@@ -33,6 +33,9 @@ def to_result(match: dict) -> MatchResult | None:
     score = SCORE_RE.match(str(match.get("score") or ""))
     if match.get("status") != "FINISHED" or not score:
         return None
+    # Seuls les matchs validés par un administrateur comptent au classement
+    if match.get("approval_status", "APPROVED") != "APPROVED":
+        return None
     return MatchResult(
         match_id=int(match["id"]),
         tournament_id=int(match["tournament_id"]),

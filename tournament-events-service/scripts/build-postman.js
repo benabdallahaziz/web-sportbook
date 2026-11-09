@@ -17,7 +17,7 @@ const json = (obj) => ({
   options: { raw: { language: 'json' } },
 });
 
-function req(name, method, url, { body, rawBody, status, checks = [], save } = {}) {
+function req(name, method, url, { body, rawBody, status, checks = [], save, as } = {}) {
   const exec = [
     `pm.test("Status ${status}", () => pm.response.to.have.status(${status}));`,
   ];
@@ -38,7 +38,12 @@ function req(name, method, url, { body, rawBody, status, checks = [], save } = {
     exec.push(`if (pm.response.code === ${status}) pm.collectionVariables.set("${save}", pm.response.json().id);`);
   }
 
-  const headers = [{ key: 'Accept', value: 'application/json' }];
+  // Utilisateur courant (en attendant JWT) : admin par défaut, ou "as" pour simuler un utilisateur
+  const headers = [
+    { key: 'Accept', value: 'application/json' },
+    { key: 'X-User-Id', value: as ? String(as.id) : '{{userId}}' },
+    { key: 'X-User-Roles', value: as ? as.roles : '{{userRoles}}' },
+  ];
   let reqBody;
   if (body !== undefined || rawBody !== undefined) {
     headers.push({ key: 'Content-Type', value: 'application/json' });
@@ -59,6 +64,8 @@ function req(name, method, url, { body, rawBody, status, checks = [], save } = {
 }
 
 const folder = (name, item) => ({ name, item });
+const USER = { id: 9001, roles: 'SPORTIF' };
+const OTHER = { id: 9002, roles: 'SPORTIF' };
 
 const collection = {
   info: {
@@ -70,6 +77,9 @@ const collection = {
   },
   variable: [
     { key: 'baseUrl', value: 'http://localhost:8086' },
+    { key: 'userId', value: '1' },
+    { key: 'userRoles', value: 'ADMIN' },
+    { key: 'proposalId', value: '' },
     { key: 'tournamentId', value: '' },
     { key: 'teamId', value: '' },
     { key: 'team2Id', value: '' },
@@ -172,7 +182,38 @@ const collection = {
       req('409 · supprimer une équipe qui joue un match', 'DELETE', '/api/teams/{{teamId}}', { status: 409 }),
     ]),
 
-    folder('6. Suppressions (nettoyage)', [
+    folder('6. Validation (utilisateur → admin)', [
+      req('Utilisateur : proposer un tournoi', 'POST', '/api/tournaments', {
+        status: 201, save: 'proposalId', as: USER,
+        body: { name: 'Proposition Postman', start_date: '2027-09-01', end_date: '2027-09-05' },
+        checks: ['pm.test("PENDING", () => pm.expect(pm.response.json().approval_status).to.eql("PENDING"));'],
+      }),
+      req('Autre utilisateur : proposition invisible (404)', 'GET', '/api/tournaments/{{proposalId}}', { status: 404, as: OTHER }),
+      req('Utilisateur : auto-validation interdite (403)', 'PATCH', '/api/tournaments/{{proposalId}}/approval', {
+        status: 403, as: USER, body: { decision: 'APPROVED' },
+      }),
+      req('Admin : file des tournois en attente', 'GET', '/api/tournaments?approval=PENDING', { status: 200,
+        checks: ['pm.test("contient la proposition", () => pm.expect(pm.response.json().some((t) => t.id === Number(pm.collectionVariables.get("proposalId")))).to.eql(true));'] }),
+      req('Admin : refuser avec motif', 'PATCH', '/api/tournaments/{{proposalId}}/approval', {
+        status: 200, body: { decision: 'REJECTED', reason: 'Dates à revoir' },
+        checks: ['pm.test("REJECTED + motif", () => { const b = pm.response.json(); pm.expect(b.approval_status).to.eql("REJECTED"); pm.expect(b.rejection_reason).to.eql("Dates à revoir"); });'],
+      }),
+      req('Utilisateur : corriger → re-soumis', 'PATCH', '/api/tournaments/{{proposalId}}', {
+        status: 200, as: USER, body: { end_date: '2027-09-06' },
+        checks: ['pm.test("de nouveau PENDING", () => pm.expect(pm.response.json().approval_status).to.eql("PENDING"));'],
+      }),
+      req('Admin : valider', 'PATCH', '/api/tournaments/{{proposalId}}/approval', {
+        status: 200, body: { decision: 'APPROVED' },
+        checks: ['pm.test("APPROVED", () => pm.expect(pm.response.json().approval_status).to.eql("APPROVED"));'],
+      }),
+      req('Utilisateur : validé → plus modifiable (403)', 'PATCH', '/api/tournaments/{{proposalId}}', {
+        status: 403, as: USER, body: { name: 'X' },
+      }),
+      req('Utilisateur : file des inscriptions interdite (403)', 'GET', '/api/tournaments/registrations', { status: 403, as: USER }),
+      req('Admin : supprimer la proposition', 'DELETE', '/api/tournaments/{{proposalId}}', { status: 204 }),
+    ]),
+
+    folder('7. Suppressions (nettoyage)', [
       req('Supprimer le match', 'DELETE', '/api/matches/{{matchId}}', { status: 204 }),
       req('Match supprimé → 404', 'GET', '/api/matches/{{matchId}}', { status: 404 }),
       req('Désinscrire équipe B', 'DELETE', '/api/tournaments/{{tournamentId}}/teams/{{team2Id}}', { status: 204 }),

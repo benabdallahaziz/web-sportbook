@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, roleGuard } from './core/guards';
+import { authGuard, guestGuard, redirectToHome, roleGuard } from './core/guards';
 import { ShellComponent } from './layout/shell.component';
 
 export const routes: Routes = [
@@ -18,8 +18,12 @@ export const routes: Routes = [
     component: ShellComponent,
     canActivate: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
-      { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent) },
+      // Chaque profil a son accueil : back-office (admin) ou espace utilisateur
+      { path: '', pathMatch: 'full', redirectTo: redirectToHome },
+      { path: 'dashboard', canActivate: [roleGuard], data: { roles: ['ADMIN'] },
+        loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent) },
+      { path: 'accueil', title: 'Mon espace · SportBook',
+        loadComponent: () => import('./features/home/player-home.component').then((m) => m.PlayerHomeComponent) },
       { path: 'profile', loadComponent: () => import('./features/users/profile.component').then((m) => m.ProfileComponent) },
       { path: 'users', canActivate: [roleGuard], data: { roles: ['ADMIN'] }, loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
       { path: 'venues', loadChildren: () => import('./features/venues/venues.routes').then((m) => m.VENUES_ROUTES) },

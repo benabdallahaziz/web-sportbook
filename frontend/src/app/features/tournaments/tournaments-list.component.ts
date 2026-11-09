@@ -2,9 +2,9 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { AuthService } from '../../core/auth.service';
 import { ApiError } from '../../core/error.interceptor';
 import { NotifyService } from '../../core/notify.service';
+import { TournamentAccess } from './tournament-access.service';
 import { TournamentApi } from './tournament-api.service';
 import { Match, TOURNAMENT_STATUSES, Team, Tournament, TournamentInput, TournamentStatus } from './tournament.models';
 import { StatusPillComponent, durationDays, fmtDate } from './tournament-ui';
@@ -17,12 +17,18 @@ import { StatusPillComponent, durationDays, fmtDate } from './tournament-ui';
 export class TournamentsListComponent implements OnInit {
   private api = inject(TournamentApi);
   private notify = inject(NotifyService);
-  private auth = inject(AuthService);
+  readonly access = inject(TournamentAccess);
 
   readonly statuses = TOURNAMENT_STATUSES;
   readonly fmtDate = fmtDate;
   readonly durationDays = durationDays;
-  canWrite = computed(() => this.auth.hasRole('ADMIN', 'GERANT'));
+  /** Nombre de tournois proposés en attente (badge du bouton « À valider » de l'admin). */
+  pendingCount = computed(() => this.tournaments().filter((t) => t.approval_status === 'PENDING').length);
+  /** Mes propositions non encore validées (utilisateur). */
+  myProposals = computed(() =>
+    this.tournaments().filter((t) => this.access.isOwner(t) && t.approval_status !== 'APPROVED'),
+  );
+  myRejected = computed(() => this.myProposals().filter((t) => t.approval_status === 'REJECTED').length);
 
   tournaments = signal<Tournament[]>([]);
   teams = signal<Team[]>([]);
@@ -117,7 +123,11 @@ export class TournamentsListComponent implements OnInit {
       next: (t) => {
         this.saving.set(false);
         this.formOpen.set(false);
-        this.notify.success(id ? `Tournoi « ${t.name} » mis à jour.` : `Tournoi « ${t.name} » créé.`);
+        if (t.approval_status === 'APPROVED') {
+          this.notify.success(id ? `Tournoi « ${t.name} » mis à jour.` : `Tournoi « ${t.name} » créé.`);
+        } else {
+          this.notify.info(`« ${t.name} » envoyé pour validation : il sera visible par tous après accord d’un administrateur.`);
+        }
         this.load();
       },
       // Les erreurs 400 de validation s'affichent DANS le formulaire, avec le détail par champ

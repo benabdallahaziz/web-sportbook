@@ -43,6 +43,86 @@ router.route('/')
 
 /**
  * @swagger
+ * /api/tournaments/registrations:
+ *   get:
+ *     summary: "(Admin) File des inscriptions d'équipes à valider"
+ *     tags: [Validation]
+ *     parameters:
+ *       - $ref: '#/components/parameters/UserRoles'
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, enum: [PENDING, CONFIRMED, REJECTED], default: PENDING }
+ *     responses:
+ *       200:
+ *         description: Inscriptions avec le nom du tournoi et de l'équipe
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items: { $ref: '#/components/schemas/PendingRegistration' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
+// Déclarée AVANT /:id, sinon "registrations" serait lu comme un id
+router.get('/registrations', ctrl.listRegistrations);
+
+/**
+ * @swagger
+ * /api/tournaments/{id}/approval:
+ *   patch:
+ *     summary: "(Admin) Valider ou refuser un tournoi proposé"
+ *     tags: [Validation]
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPath'
+ *       - $ref: '#/components/parameters/UserRoles'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/ApprovalInput' }
+ *     responses:
+ *       200:
+ *         description: Tournoi avec son nouveau statut de validation
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Tournament' }
+ *       400: { $ref: '#/components/responses/BadRequest' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.patch('/:id/approval', ctrl.decide);
+
+/**
+ * @swagger
+ * /api/tournaments/{id}/teams/{teamId}:
+ *   patch:
+ *     summary: "(Admin) Confirmer ou refuser l'inscription d'une équipe"
+ *     tags: [Validation]
+ *     parameters:
+ *       - $ref: '#/components/parameters/IdPath'
+ *       - in: path
+ *         name: teamId
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *       - $ref: '#/components/parameters/UserRoles'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string, enum: [CONFIRMED, REJECTED] }
+ *     responses:
+ *       200: { description: Inscription mise à jour }
+ *       400: { $ref: '#/components/responses/BadRequest' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
+router.patch('/:id/teams/:teamId', ctrl.decideRegistration);
+
+/**
+ * @swagger
  * /api/tournaments/{id}:
  *   parameters:
  *     - $ref: '#/components/parameters/IdPath'

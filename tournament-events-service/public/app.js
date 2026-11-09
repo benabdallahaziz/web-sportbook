@@ -63,7 +63,9 @@ async function api(method, path, body, base = API_BASE) {
   const isMainApi = base === API_BASE;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  const headers = { Accept: 'application/json' };
+  // Cette page (atelier 1) sert de console d'administration du service :
+  // elle s'identifie comme ADMIN (voir le circuit de validation, src/utils/auth.js).
+  const headers = { Accept: 'application/json', 'X-User-Roles': 'ADMIN' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res;

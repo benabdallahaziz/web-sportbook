@@ -6,21 +6,31 @@
 export type TournamentStatus = 'PLANNED' | 'ONGOING' | 'FINISHED';
 export type MatchStatus = 'SCHEDULED' | 'ONGOING' | 'FINISHED';
 
-export interface Tournament {
+/** Circuit de validation : proposition d'un utilisateur → décision de l'admin. */
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export interface Approvable {
+  approval_status: ApprovalStatus;
+  created_by: number | null;
+  rejection_reason: string | null;
+}
+
+export interface Tournament extends Approvable {
   id: number;
   name: string;
   start_date: string | null;
   end_date: string | null;
   status: TournamentStatus;
 }
-export type TournamentInput = Omit<Tournament, 'id'>;
+export type TournamentInput = Omit<Tournament, 'id' | keyof Approvable>;
 
 export interface Team {
   id: number;
   name: string;
   members: number;
+  /** Propriétaire (null pour les équipes créées avant cette règle : admin seulement). */
+  created_by: number | null;
 }
-export type TeamInput = Omit<Team, 'id'>;
+export type TeamInput = Omit<Team, 'id' | 'created_by'>;
 
 export interface RegisteredTeam extends Team {
   registration_date: string;
@@ -34,7 +44,7 @@ export interface Round {
   tournament_id: number;
 }
 
-export interface Match {
+export interface Match extends Approvable {
   id: number;
   date: string | null;
   score: string | null;
@@ -46,6 +56,7 @@ export interface Match {
   team2_name: string;
   round_name: string;
   tournament_id: number;
+  tournament_name: string;
 }
 
 export interface MatchInput {
@@ -55,6 +66,18 @@ export interface MatchInput {
   round_id: number | null;
   team1_id: number | null;
   team2_id: number | null;
+}
+
+/** Inscription en attente (file de l'administrateur). */
+export interface PendingRegistration {
+  id: number;
+  tournament_id: number;
+  tournament_name: string;
+  team_id: number;
+  team_name: string;
+  members: number;
+  registration_date: string;
+  status: string;
 }
 
 // ─── stats-service (Python) ───────────────────────────────────────────────────

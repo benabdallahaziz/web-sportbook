@@ -1,27 +1,63 @@
-<div class="shell" [class.nav-open]="open()">
-  <aside class="sidebar" aria-label="Navigation principale">
-    <a class="brand" routerLink="/dashboard" (click)="open.set(false)">SportBook</a>
-    <nav>
-      <a routerLink="/dashboard" routerLinkActive="active" (click)="open.set(false)">Tableau de bord</a>
-      @for (m of modules(); track m.id) {
-        <div class="nav-group" [attr.data-module]="m.id">
-          <span class="nav-title">{{ m.label }}</span>
-          @for (l of m.links; track l.path) {
-            <a [routerLink]="l.path" routerLinkActive="active" (click)="open.set(false)">{{ l.label }}</a>
+@if (isAdmin()) {
+  <!-- ═════════ ADMINISTRATION : tableau de bord avec menu latéral ═════════ -->
+  <div class="shell" [class.nav-open]="open()">
+    <aside class="sidebar" aria-label="Navigation principale">
+      <a class="brand" routerLink="/" (click)="open.set(false)">SportBook</a>
+      <span class="space-badge">Administration</span>
+      <nav>
+        <a routerLink="/dashboard" routerLinkActive="active" (click)="open.set(false)">Tableau de bord</a>
+        @for (m of modules(); track m.id) {
+          <div class="nav-group" [attr.data-module]="m.id">
+            <span class="nav-title">{{ m.label }}</span>
+            @for (l of links(m); track l.path) {
+              <a [routerLink]="l.path" routerLinkActive="active" (click)="open.set(false)">{{ l.label }}</a>
+            }
+          </div>
+        }
+      </nav>
+      <div class="me">
+        <a routerLink="/profile" class="me-name" (click)="open.set(false)">{{ auth.fullName() }}</a>
+        <small>{{ roleLabel() }}</small>
+        <button class="btn ghost small" (click)="auth.logout()">Se déconnecter</button>
+      </div>
+    </aside>
+    <div class="main">
+      <button class="burger" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-label="Ouvrir le menu">Menu</button>
+      <main><router-outlet /></main>
+    </div>
+    <div class="scrim" (click)="open.set(false)" aria-hidden="true"></div>
+  </div>
+} @else {
+  <!-- ═════════ ESPACE UTILISATEUR : site avec navigation horizontale ═════════ -->
+  <div class="site" [class.nav-open]="open()">
+    <header class="site-header">
+      <div class="site-bar">
+        <a class="site-logo" routerLink="/accueil" (click)="open.set(false)">Sport<span>Book</span></a>
+        <nav class="site-nav" aria-label="Navigation principale">
+          @for (l of playerNav(); track l.path) {
+            <a [routerLink]="l.path" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: !!l.exact }" (click)="open.set(false)">{{ l.label }}</a>
+          }
+        </nav>
+        <div class="site-user">
+          <button class="user-chip" (click)="userMenu.set(!userMenu())" [attr.aria-expanded]="userMenu()" aria-haspopup="menu">
+            <span class="avatar">{{ initials() }}</span>
+            <span class="user-name">{{ auth.fullName() }}</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+          @if (userMenu()) {
+            <div class="user-menu" role="menu">
+              <span class="user-role">{{ roleLabel() }}</span>
+              <a routerLink="/profile" role="menuitem" (click)="userMenu.set(false)">Mon profil</a>
+              <a routerLink="/tournaments/teams" role="menuitem" (click)="userMenu.set(false)">Mes équipes</a>
+              <button role="menuitem" (click)="auth.logout()">Se déconnecter</button>
+            </div>
           }
         </div>
-      }
-    </nav>
-    <div class="me">
-      <a routerLink="/profile" class="me-name" (click)="open.set(false)">{{ auth.fullName() }}</a>
-      <small>{{ roleLabel() }}</small>
-      <button class="btn ghost small" (click)="auth.logout()">Se déconnecter</button>
-    </div>
-  </aside>
-  <div class="main">
-    <button class="burger" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-label="Ouvrir le menu">Menu</button>
-    <main><router-outlet /></main>
+        <button class="site-burger" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-label="Ouvrir le menu">☰</button>
+      </div>
+    </header>
+    <main class="site-main" (click)="userMenu.set(false)"><router-outlet /></main>
+    <footer class="site-footer">SportBook · réservez, jouez, progressez</footer>
   </div>
-  <div class="scrim" (click)="open.set(false)" aria-hidden="true"></div>
-</div>
+}
 <app-toast-host />

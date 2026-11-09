@@ -13,9 +13,11 @@
       <button class="seg-btn" [class.on]="orderBy === 'elo'" (click)="orderBy = 'elo'; load()">Elo</button>
       <button class="seg-btn" [class.on]="orderBy === 'points'" (click)="orderBy = 'points'; load()">Points</button>
     </div>
-    <button class="btn ghost" (click)="sync()" [disabled]="syncing()" title="POST /api/stats/sync">
-      {{ syncing() ? 'Synchronisation…' : 'Resynchroniser' }}
-    </button>
+    @if (access.isAdmin()) {
+      <button class="btn ghost" (click)="sync()" [disabled]="syncing()" title="POST /api/stats/sync">
+        {{ syncing() ? 'Synchronisation…' : 'Resynchroniser' }}
+      </button>
+    }
   </div>
 </header>
 

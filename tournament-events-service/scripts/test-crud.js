@@ -11,10 +11,15 @@ let createdTournamentId, createdTeamId1, createdTeamId2, createdMatchId;
 
 // ─── Utilitaires ─────────────────────────────────────────────────────────────
 
-async function request(method, path, body = null) {
+// Utilisateurs simulés (en-têtes transmis par le front, en attendant JWT)
+const ADMIN = { 'X-User-Id': '1', 'X-User-Roles': 'ADMIN' };
+const USER  = { 'X-User-Id': '9001', 'X-User-Roles': 'SPORTIF' };
+const OTHER = { 'X-User-Id': '9002', 'X-User-Roles': 'SPORTIF' };
+
+async function request(method, path, body = null, user = ADMIN) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json', ...user }
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE_URL}${path}`, opts);
@@ -248,6 +253,72 @@ async function testMatchUpdateScore() {
   ok('Status en base = FINISHED',  match.status === 'FINISHED');
 }
 
+// ── CIRCUIT DE VALIDATION ─────────────────────────────────────────────────────
+
+async function testApprovalWorkflow() {
+  section('VALIDATION — proposition utilisateur → décision admin');
+
+  // 1. Un utilisateur propose un tournoi
+  const { status, data: t } = await request('POST', '/api/tournaments',
+    { name: 'Proposition utilisateur', start_date: '2027-06-01', end_date: '2027-06-05' }, USER);
+  ok('201 : tournoi proposé',                       status === 201);
+  ok('Statut de validation PENDING',                 t.approval_status === 'PENDING');
+  ok('created_by = auteur',                          t.created_by === 9001);
+  ok('Invisible pour un autre utilisateur (404)',    (await request('GET', `/api/tournaments/${t.id}`, null, OTHER)).status === 404);
+  ok('Absent de la liste d’un autre utilisateur',    !(await request('GET', '/api/tournaments', null, OTHER)).data.some((x) => x.id === t.id));
+  ok('Visible pour son auteur',                      (await request('GET', `/api/tournaments/${t.id}`, null, USER)).status === 200);
+  ok('L’auteur peut modifier sa proposition',        (await request('PATCH', `/api/tournaments/${t.id}`, { name: 'Proposition modifiée' }, USER)).status === 200);
+  ok('Inscriptions fermées tant que non validé (409)',
+    (await request('POST', `/api/tournaments/${t.id}/teams`, { team_id: createdTeamId1 }, USER)).status === 409);
+
+  // 2. L'organisateur planifie un tour et un match
+  const round = await request('POST', `/api/tournaments/${t.id}/rounds`, { name: 'Finale', round_order: 1 }, USER);
+  ok('L’organisateur ajoute un tour (201)',          round.status === 201);
+  const m = await request('POST', '/api/matches', {
+    round_id: round.data.id, team1_id: createdTeamId1, team2_id: createdTeamId2,
+    date: '2027-06-02', score: '9-0', status: 'FINISHED',
+  }, USER);
+  ok('Match proposé (201, PENDING)',                 m.status === 201 && m.data.approval_status === 'PENDING');
+  ok('Score/statut envoyés par l’utilisateur ignorés', m.data.score === null && m.data.status === 'SCHEDULED');
+  ok('L’utilisateur ne saisit pas de score (403)',   (await request('PATCH', `/api/matches/${m.data.id}/score`, { score: '1-0' }, USER)).status === 403);
+  ok('L’utilisateur ne se valide pas lui-même (403)', (await request('PATCH', `/api/tournaments/${t.id}/approval`, { decision: 'APPROVED' }, USER)).status === 403);
+  ok('Match non validable avant son tournoi (409)',  (await request('PATCH', `/api/matches/${m.data.id}/approval`, { decision: 'APPROVED' })).status === 409);
+
+  // 3. L'admin refuse, l'utilisateur corrige et re-soumet
+  const rej = await request('PATCH', `/api/tournaments/${t.id}/approval`, { decision: 'REJECTED', reason: 'Dates à revoir' });
+  ok('Admin refuse avec un motif',                   rej.data.approval_status === 'REJECTED' && rej.data.rejection_reason === 'Dates à revoir');
+  const resub = await request('PATCH', `/api/tournaments/${t.id}`, { start_date: '2027-06-10', end_date: '2027-06-12' }, USER);
+  ok('Correction par l’auteur → de nouveau PENDING',  resub.data.approval_status === 'PENDING' && resub.data.rejection_reason === null);
+
+  // 4. L'admin valide : le tournoi devient public et figé pour l'auteur
+  const appr = await request('PATCH', `/api/tournaments/${t.id}/approval`, { decision: 'APPROVED' });
+  ok('Admin valide le tournoi',                      appr.data.approval_status === 'APPROVED');
+  ok('Validé → l’auteur ne peut plus le modifier (403)', (await request('PATCH', `/api/tournaments/${t.id}`, { name: 'X' }, USER)).status === 403);
+  ok('Visible par tous une fois validé',             (await request('GET', `/api/tournaments/${t.id}`, null, OTHER)).status === 200);
+  ok('Admin valide le match',                        (await request('PATCH', `/api/matches/${m.data.id}/approval`, { decision: 'APPROVED' })).data.approval_status === 'APPROVED');
+  ok('Admin saisit le score (200)',                  (await request('PATCH', `/api/matches/${m.data.id}/score`, { score: '2-1' })).status === 200);
+
+  // 5. Équipes : chacun gère SES équipes
+  const myTeam = (await request('POST', '/api/teams', { name: 'Équipe de l’utilisateur', members: 6 }, USER)).data;
+  ok('L’utilisateur crée son équipe (propriétaire)', myTeam.created_by === 9001);
+  ok('Il modifie son équipe (200)',                  (await request('PATCH', `/api/teams/${myTeam.id}`, { members: 7 }, USER)).status === 200);
+  ok('Il ne modifie pas l’équipe d’un autre (403)',  (await request('PATCH', `/api/teams/${createdTeamId1}`, { members: 1 }, USER)).status === 403);
+  ok('Un autre ne supprime pas son équipe (403)',    (await request('DELETE', `/api/teams/${myTeam.id}`, null, OTHER)).status === 403);
+  ok('Il n’inscrit pas l’équipe d’un autre (403)',   (await request('POST', `/api/tournaments/${t.id}/teams`, { team_id: createdTeamId1 }, USER)).status === 403);
+
+  // 6. Inscriptions : l'utilisateur inscrit SON équipe, l'admin confirme
+  const reg = await request('POST', `/api/tournaments/${t.id}/teams`, { team_id: myTeam.id }, USER);
+  ok('Inscription utilisateur → PENDING',            reg.status === 201 && reg.data.status === 'PENDING');
+  ok('Un autre ne peut pas la retirer (403)',        (await request('DELETE', `/api/tournaments/${t.id}/teams/${myTeam.id}`, null, OTHER)).status === 403);
+  const queue = await request('GET', '/api/tournaments/registrations?status=PENDING');
+  ok('La file de l’admin contient l’inscription',     queue.data.some((r) => r.tournament_id === t.id && r.team_id === myTeam.id));
+  ok('File interdite à un utilisateur (403)',        (await request('GET', '/api/tournaments/registrations', null, USER)).status === 403);
+  ok('Admin confirme l’inscription',                 (await request('PATCH', `/api/tournaments/${t.id}/teams/${myTeam.id}`, { status: 'CONFIRMED' })).data.status === 'CONFIRMED');
+
+  await request('DELETE', `/api/tournaments/${t.id}`);
+  ok('Le propriétaire supprime son équipe (204)',    (await request('DELETE', `/api/teams/${myTeam.id}`, null, USER)).status === 204);
+}
+
 // ── SUPPRESSION (cleanup) ─────────────────────────────────────────────────────
 
 async function testDelete() {
@@ -290,6 +361,7 @@ async function runAll() {
     await testMatchGetAll();
     await testMatchGetById();
     await testMatchUpdateScore();
+    await testApprovalWorkflow();
     await testDelete();
   } catch (err) {
     console.error('\n💥 Erreur inattendue:', err.message);

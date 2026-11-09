@@ -9,13 +9,16 @@
       <option [ngValue]="null">Tous les tournois</option>
       @for (t of tournaments(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
     </select>
-    @if (canWrite()) { <button class="btn primary" (click)="openCreate()">+ Nouveau match</button> }
+    @if (access.isLoggedIn()) { <button class="btn primary" (click)="openCreate()">{{ access.isAdmin() ? '+ Nouveau match' : '+ Proposer un match' }}</button> }
   </div>
 </header>
 
 @if (formOpen()) {
   <form class="panel form-grid form-card" (ngSubmit)="save()" #f="ngForm">
-    <h2>{{ editingId() ? 'Modifier le match' : 'Nouveau match' }}</h2>
+    <h2>{{ editingId() ? 'Modifier le match' : access.isAdmin() ? 'Nouveau match' : 'Proposer un match' }}</h2>
+    @if (!access.isAdmin()) {
+      <p class="notice wide">Le match sera visible par tous après validation par un administrateur. Le score sera saisi par l’administrateur.</p>
+    }
     @if (formError(); as err) {
       <div class="alert wide" role="alert">
         <strong>{{ err.message }}</strong>
@@ -25,7 +28,7 @@
     <label><span>Tournoi <b aria-hidden="true">*</b></span>
       <select name="tournament" [ngModel]="formTournament" (ngModelChange)="loadRounds($event)" required>
         <option [ngValue]="null">Choisir…</option>
-        @for (t of tournaments(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
+        @for (t of plannable(); track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
       </select>
     </label>
     <label><span>Tour <b aria-hidden="true">*</b></span>
@@ -47,7 +50,7 @@
       </select>
     </label>
     <label><span>Date</span><input type="date" name="date" [(ngModel)]="model.date" /></label>
-    <label><span>Statut</span>
+    <label [hidden]="!access.isAdmin()"><span>Statut</span>
       <select name="status" [(ngModel)]="model.status">
         @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
       </select>
@@ -82,13 +85,13 @@
 } @else {
   <ul class="panel match-list standalone">
     @for (m of visible(); track m.id) {
-      <li class="scoreline" [attr.data-status]="m.status">
+      <li class="scoreline" [attr.data-status]="m.status" [attr.data-approval]="m.approval_status">
         <span class="when">
           {{ fmtDate(m.date, true) }}
           <small><a [routerLink]="['/tournaments/list', m.tournament_id]">{{ tournamentName().get(m.tournament_id) ?? 'Tournoi' }}</a> · {{ m.round_name }}</small>
         </span>
         <span class="side home" [class.win]="winner(m) === 1"><app-team-badge [name]="m.team1_name" /> {{ m.team1_name }}</span>
-        @if (canWrite()) {
+        @if (access.isAdmin() && m.approval_status === 'APPROVED') {
           <form class="score-edit" (ngSubmit)="saveScore(m)">
             <input [name]="'s' + m.id" [(ngModel)]="scores[m.id]" placeholder="– : –" aria-label="Score" />
             <button class="btn small primary" type="submit">OK</button>
@@ -97,13 +100,20 @@
           <span class="score">{{ m.score || 'vs' }}</span>
         }
         <span class="side away" [class.win]="winner(m) === 2">{{ m.team2_name }} <app-team-badge [name]="m.team2_name" /></span>
-        <app-status [value]="m.status" />
-        @if (canWrite()) {
-          <span class="row-actions">
+        <span class="pills">
+          <app-status [value]="m.status" />
+          @if (m.approval_status !== 'APPROVED') { <app-status [value]="m.approval_status" [attr.title]="m.rejection_reason" /> }
+        </span>
+        <span class="row-actions">
+          @if (access.isAdmin() && m.approval_status === 'PENDING') {
+            <button class="icon-btn ok" (click)="decide(m, 'APPROVED')" aria-label="Valider le match" title="Valider">✓</button>
+            <button class="icon-btn" (click)="decide(m, 'REJECTED')" aria-label="Refuser le match" title="Refuser">⨯</button>
+          }
+          @if (access.canModify(m)) {
             <button class="btn small ghost" (click)="openEdit(m)">Modifier</button>
-            <button class="icon-btn" (click)="remove(m)" aria-label="Supprimer le match">×</button>
-          </span>
-        }
+            <button class="icon-btn" (click)="remove(m)" aria-label="Supprimer le match" title="Supprimer">×</button>
+          }
+        </span>
       </li>
     }
   </ul>

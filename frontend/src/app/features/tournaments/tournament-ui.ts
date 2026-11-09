@@ -9,6 +9,8 @@ const LABELS: Record<string, string> = {
   SCHEDULED: 'Programmé',
   PENDING: 'En attente',
   CONFIRMED: 'Confirmée',
+  APPROVED: 'Validé',
+  REJECTED: 'Refusé',
 };
 
 export const statusLabel = (s: string | null | undefined) => (s ? LABELS[s] ?? s : '—');

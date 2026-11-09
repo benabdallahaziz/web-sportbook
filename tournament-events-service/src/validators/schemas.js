@@ -43,3 +43,16 @@ module.exports = {
   tournamentSchema, teamSchema, matchSchema, scoreSchema, roundSchema, registrationSchema,
   TOURNAMENT_STATUS, MATCH_STATUS,
 };
+
+// ─── Circuit de validation (réservé à l'admin) ───────────────────────────────
+const approvalSchema = {
+  decision: { type: 'enum', values: ['APPROVED', 'REJECTED'], required: true },
+  reason:   { type: 'string', maxLength: 255 },
+};
+
+const registrationDecisionSchema = {
+  status: { type: 'enum', values: ['CONFIRMED', 'REJECTED'], required: true },
+};
+
+module.exports.approvalSchema = approvalSchema;
+module.exports.registrationDecisionSchema = registrationDecisionSchema;

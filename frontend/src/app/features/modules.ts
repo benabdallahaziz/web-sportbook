@@ -1,6 +1,6 @@
 import { Role } from '../core/models';
 
-export interface ModuleLink { label: string; path: string; endpoint: string }
+export interface ModuleLink { label: string; path: string; endpoint: string; roles?: Role[] }
 export interface ModuleInfo {
   id: string;
   label: string;
@@ -41,6 +41,7 @@ export const MODULES: ModuleInfo[] = [
       { label: 'Tournois', path: '/tournaments/list', endpoint: '/api/tournaments' },
       { label: 'Équipes', path: '/tournaments/teams', endpoint: '/api/teams' },
       { label: 'Matchs', path: '/tournaments/matches', endpoint: '/api/matches' },
+      { label: 'Validation', path: '/tournaments/approvals', endpoint: '/api/tournaments?approval=PENDING', roles: ['ADMIN'] },
     ] },
   { id: 'stats', label: 'Statistiques', service: 'stats-service', base: '/tournaments/ranking',
     description: 'Classement Elo et pronostics (microservice Python).',

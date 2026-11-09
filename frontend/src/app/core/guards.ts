@@ -1,7 +1,17 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, RedirectFunction, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { Role } from './models';
+
+/**
+ * Page d'accueil selon le profil :
+ *   - ADMIN            → /dashboard (back-office : état des microservices)
+ *   - SPORTIF / GERANT → /accueil   (espace utilisateur « Mon espace »)
+ */
+export const homeUrl = (auth: AuthService) => (auth.hasRole('ADMIN') ? '/dashboard' : '/accueil');
+
+/** Redirection de la racine "/" vers l'accueil du profil connecté. */
+export const redirectToHome: RedirectFunction = () => inject(Router).parseUrl(homeUrl(inject(AuthService)));
 
 export const authGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
@@ -10,12 +20,12 @@ export const authGuard: CanActivateFn = () => {
 
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
-  return auth.isLoggedIn() ? inject(Router).parseUrl('/dashboard') : true;
+  return auth.isLoggedIn() ? inject(Router).parseUrl(homeUrl(auth)) : true;
 };
 
-/** Utilisation : data: { roles: ['ADMIN'] } */
+/** Utilisation : data: { roles: ['ADMIN'] }. Sinon, retour à l'accueil du profil. */
 export const roleGuard: CanActivateFn = (route) => {
   const auth = inject(AuthService);
   const roles = (route.data['roles'] ?? []) as Role[];
-  return roles.length === 0 || auth.hasRole(...roles) ? true : inject(Router).parseUrl('/dashboard');
+  return roles.length === 0 || auth.hasRole(...roles) ? true : inject(Router).parseUrl(homeUrl(auth));
 };

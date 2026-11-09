@@ -37,7 +37,7 @@ export class LoginComponent {
     this.loading.set(true);
     this.error.set('');
     this.auth.login(this.email, this.password).subscribe({
-      next: () => this.router.navigateByUrl('/dashboard'),
+      next: () => this.router.navigateByUrl('/'),
       error: (e) => {
         this.error.set(e.message);
         this.loading.set(false);

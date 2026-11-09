@@ -4,6 +4,7 @@ import { forkJoin } from 'rxjs';
 import { ApiError } from '../../core/error.interceptor';
 import { NotifyService } from '../../core/notify.service';
 import { RankingTableComponent } from './ranking-table.component';
+import { TournamentAccess } from './tournament-access.service';
 import { TournamentApi } from './tournament-api.service';
 import { Prediction, RankingResponse, Team, Tournament } from './tournament.models';
 import { TeamBadgeComponent } from './tournament-ui';
@@ -17,6 +18,7 @@ import { TeamBadgeComponent } from './tournament-ui';
 export class RankingComponent implements OnInit {
   private api = inject(TournamentApi);
   private notify = inject(NotifyService);
+  readonly access = inject(TournamentAccess);
 
   tournaments = signal<Tournament[]>([]);
   teams = signal<Team[]>([]);
