@@ -24,6 +24,7 @@ export class ShellComponent {
   /** Navigation du site utilisateur : des rubriques simples, pas des modules techniques. */
   playerNav = computed(() => [
     { label: 'Accueil', path: '/accueil', exact: true },
+    { label: 'Terrains & Salles', path: '/venues/catalog' },
     { label: 'Tournois', path: '/tournaments/list' },
     { label: 'Matchs', path: '/tournaments/matches' },
     { label: 'Classement', path: '/tournaments/ranking' },
@@ -31,7 +32,7 @@ export class ShellComponent {
     { label: 'Réserver', path: '/bookings/list' },
     { label: 'Boutique', path: '/marketplace/products' },
     { label: 'Coachs', path: '/coaches/list' },
-    ...(this.auth.hasRole('GERANT') ? [{ label: 'Mes complexes', path: '/venues/list' }] : []),
+    ...(this.auth.hasRole('GERANT') ? [{ label: 'Gestion Terrains', path: '/venues/manage' }] : []),
   ]);
   roleLabel = computed(() =>
     (this.auth.user()?.roles ?? []).map((r) => ({ ADMIN: 'Administrateur', GERANT: 'Gérant', SPORTIF: 'Sportif' })[r] ?? r).join(' · '),

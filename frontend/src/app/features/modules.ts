@@ -19,8 +19,8 @@ export const MODULES: ModuleInfo[] = [
   { id: 'venues', label: 'Complexes', service: 'venue-management-service', base: '/venues',
     description: 'Complexes sportifs et terrains.',
     links: [
-      { label: 'Complexes', path: '/venues/list', endpoint: '/api/venues' },
-      { label: 'Terrains', path: '/venues/fields', endpoint: '/api/fields' },
+      { label: 'Catalogue Terrains', path: '/venues/catalog', endpoint: '/api/venues' },
+      { label: 'Gestion Terrains', path: '/venues/manage', endpoint: '/api/fields', roles: ['ADMIN', 'GERANT'] },
     ] },
   { id: 'bookings', label: 'Réservations', service: 'booking-availability-service', base: '/bookings',
     description: 'Créneaux et réservations.',
