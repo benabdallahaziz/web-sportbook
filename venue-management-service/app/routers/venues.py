@@ -13,6 +13,9 @@ from app.schemas import (
     OpeningHoursCreate,
     OpeningHoursResponse
 )
+from app.messaging.rabbitmq import publish_event
+from app.security.jwt_auth import require_role, CurrentUser
+from app.services.identity_client import verify_owner_exists
 
 router = APIRouter(prefix="/api/venues", tags=["Venues"])
 
@@ -32,8 +35,26 @@ def _parse_time(val):
 
 
 @router.post("", response_model=VenueResponse, status_code=status.HTTP_201_CREATED)
-def create_venue(venue_in: VenueCreate, db: Session = Depends(get_db)):
-    """Enregistrer un nouveau complexe sportif."""
+async def create_venue(
+    venue_in: VenueCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+):
+    """
+    Enregistrer un nouveau complexe sportif.
+    - Synchronisation : Vérifie l'existence du owner_id auprès du microservice identity-user-service.
+    - Asynchronisme : Publie un événement RabbitMQ 'venue.created'.
+    - Sécurité : Réservé aux profils ADMIN ou OWNER.
+    """
+    # Validation synchrone inter-microservice (Séance 7)
+    if venue_in.owner_id is not None:
+        owner_valid = await verify_owner_exists(venue_in.owner_id)
+        if not owner_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Le propriétaire avec l'ID {venue_in.owner_id} n'existe pas dans Identity Service."
+            )
+
     venue = Venue(
         name=venue_in.name,
         address=venue_in.address,
@@ -60,6 +81,16 @@ def create_venue(venue_in: VenueCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(venue)
+
+    # Émission d'événement asynchrone RabbitMQ (Séance 8)
+    publish_event("venue.created", {
+        "id": venue.id,
+        "name": venue.name,
+        "address": venue.address,
+        "phone": venue.phone,
+        "owner_id": venue.owner_id
+    })
+
     return venue
 
 
@@ -70,7 +101,7 @@ def get_all_venues(
     owner_id: Optional[int] = Query(None, description="Filtrer par ID du gérant"),
     db: Session = Depends(get_db)
 ):
-    """Récupérer la liste des complexes sportifs avec filtres optionnels."""
+    """Récupérer la liste des complexes sportifs avec filtres optionnels (Public)."""
     query = db.query(Venue)
 
     if city:
@@ -102,8 +133,41 @@ def get_venue(venue_id: int, db: Session = Depends(get_db)):
     return venue
 
 
+@router.get("/{venue_id}/summary")
+def get_venue_summary(venue_id: int, db: Session = Depends(get_db)):
+    """
+    Endpoint synthétique inter-microservices pour booking-availability-service
+    ou mobile clients, renvoyant le résumé des capacités et tarifs.
+    """
+    venue = (
+        db.query(Venue)
+        .options(joinedload(Venue.fields), joinedload(Venue.opening_hours))
+        .filter(Venue.id == venue_id)
+        .first()
+    )
+    if not venue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Complexe sportif {venue_id} introuvable."
+        )
+    return {
+        "id": venue.id,
+        "name": venue.name,
+        "address": venue.address,
+        "total_fields": len(venue.fields),
+        "sports_available": list({f.sport for f in venue.fields}),
+        "min_price": min([f.price for f in venue.fields], default=0.0),
+        "max_price": max([f.price for f in venue.fields], default=0.0)
+    }
+
+
 @router.put("/{venue_id}", response_model=VenueDetailResponse)
-def update_venue(venue_id: int, venue_in: VenueUpdate, db: Session = Depends(get_db)):
+def update_venue(
+    venue_id: int,
+    venue_in: VenueUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+):
     """Modifier les informations d'un complexe (ex: adresse, horaires d'ouverture...)."""
     venue = db.query(Venue).filter(Venue.id == venue_id).first()
     if not venue:
@@ -140,12 +204,29 @@ def update_venue(venue_id: int, venue_in: VenueUpdate, db: Session = Depends(get
 
     db.commit()
     db.refresh(venue)
+
+    # Émission d'événement asynchrone RabbitMQ
+    publish_event("venue.updated", {
+        "id": venue.id,
+        "name": venue.name,
+        "address": venue.address,
+        "phone": venue.phone,
+        "owner_id": venue.owner_id
+    })
+
     return venue
 
 
 @router.delete("/{venue_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_venue(venue_id: int, db: Session = Depends(get_db)):
-    """Supprimer un complexe (et par cascade tous ses terrains et horaires)."""
+def delete_venue(
+    venue_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+):
+    """
+    Supprimer un complexe (et par cascade tous ses terrains et horaires).
+    Émet un événement RabbitMQ 'venue.deleted' pour avertir booking-service.
+    """
     venue = db.query(Venue).filter(Venue.id == venue_id).first()
     if not venue:
         raise HTTPException(
@@ -154,6 +235,10 @@ def delete_venue(venue_id: int, db: Session = Depends(get_db)):
         )
     db.delete(venue)
     db.commit()
+
+    # Émission d'événement asynchrone RabbitMQ
+    publish_event("venue.deleted", {"id": venue_id})
+
     return None
 
 
@@ -184,7 +269,12 @@ def get_venue_opening_hours(venue_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{venue_id}/opening-hours", response_model=OpeningHoursResponse, status_code=status.HTTP_201_CREATED)
-def add_opening_hour(venue_id: int, oh_in: OpeningHoursCreate, db: Session = Depends(get_db)):
+def add_opening_hour(
+    venue_id: int,
+    oh_in: OpeningHoursCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+):
     """Ajouter un créneau d'ouverture au complexe."""
     venue = db.query(Venue).filter(Venue.id == venue_id).first()
     if not venue:
@@ -207,4 +297,12 @@ def add_opening_hour(venue_id: int, oh_in: OpeningHoursCreate, db: Session = Dep
     db.add(oh)
     db.commit()
     db.refresh(oh)
+
+    publish_event("venue.hours_updated", {
+        "venue_id": venue_id,
+        "day": oh.day,
+        "opening_time": str(op_t),
+        "closing_time": str(cl_t)
+    })
+
     return oh

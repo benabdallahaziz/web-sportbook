@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
 from app.eureka import start_eureka, stop_eureka
-from app.routers import venues, fields
+from app.routers import venues, fields, actuator
 
 # Configure logging
 logging.basicConfig(
@@ -31,10 +31,41 @@ async def lifespan(app: FastAPI):
     await stop_eureka()
 
 
+tags_metadata = [
+    {
+        "name": "Venues",
+        "description": "Opérations sur les complexes sportifs (clubs, salles, horaires d'ouverture).",
+    },
+    {
+        "name": "Fields",
+        "description": "Opérations sur les terrains de sport (tarification par heure, discipline, rattachement).",
+    },
+    {
+        "name": "Actuator / Observabilité",
+        "description": "Endpoints d'observabilité équivalents à Spring Boot Actuator (/health, /info, /metrics).",
+    },
+    {
+        "name": "Health",
+        "description": "Vérification basique de disponibilité.",
+    },
+]
+
 app = FastAPI(
-    title="SportBook - Venue Management Service",
-    description="Microservice pour la gestion des complexes sportifs, terrains et horaires.",
+    title="SportBook – Venue Management Service",
+    description="""
+### Microservice de Gestion des Complexes & Terrains Sportifs
+Ce composant gère l'infrastructure sportive de l'écosystème **SportBook** (Projet fil rouge ESPRIT - Applications Web Distribuées).
+
+**Fonctionnalités & Intégrations :**
+* **Service Discovery :** Netflix Eureka Client (`venue-management-service`)
+* **API Gateway :** Spring Cloud Gateway routes `/api/venues/**` et `/api/fields/**`
+* **Observabilité :** Endpoints `/actuator/health`, `/actuator/info`, `/actuator/metrics`
+* **Communication Synchrone :** Validation du gérant via `identity-user-service`
+* **Communication Asynchrone :** Publication d'événements RabbitMQ (`venue.*`, `field.*`)
+* **Sécurité :** Authentification JWT compatible Keycloak & contrôle d'accès RBAC
+""",
     version="1.0.0",
+    openapi_tags=tags_metadata,
     lifespan=lifespan
 )
 
@@ -50,6 +81,7 @@ app.add_middleware(
 # Include Routers
 app.include_router(venues.router)
 app.include_router(fields.router)
+app.include_router(actuator.router)
 
 
 @app.get("/", tags=["Health"])
@@ -58,9 +90,13 @@ def root():
         "service": settings.APP_NAME,
         "status": "UP",
         "docs": "/docs",
+        "actuator": "/actuator",
         "endpoints": {
             "venues": "/api/venues",
-            "fields": "/api/fields"
+            "fields": "/api/fields",
+            "actuator_health": "/actuator/health",
+            "actuator_info": "/actuator/info",
+            "actuator_metrics": "/actuator/metrics"
         }
     }
 

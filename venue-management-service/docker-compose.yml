@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Microservice Venue Management (Python / FastAPI)
+  venue-management-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sportbook-venue-service
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+      - DB_HOST=venue-db
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=sportbook_venue
+      - EUREKA_SERVER=http://eureka-server:8761/eureka
+      - EUREKA_ENABLED=true
+      - INSTANCE_HOST=venue-management-service
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASSWORD=guest
+      - RABBITMQ_ENABLED=true
+      - SECURITY_ENABLED=false
+    depends_on:
+      venue-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - sportbook-network
+    restart: unless-stopped
+
+  # Base de données MySQL dédiée au microservice
+  venue-db:
+    image: mysql:8.0
+    container_name: sportbook-venue-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sportbook_venue
+    ports:
+      - "3307:3306"
+    volumes:
+      - venue-db-data:/var/lib/mysql
+      - ../database/sportbook_databases.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sportbook-network
+
+  # Message Broker RabbitMQ (Atelier 6 / Séance 8)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: sportbook-rabbitmq
+    ports:
+      - "5672:5672"     # Port AMQP
+      - "15672:15672"   # Tableau de bord Web Management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - sportbook-network
+
+volumes:
+  venue-db-data:
+
+networks:
+  sportbook-network:
+    driver: bridge

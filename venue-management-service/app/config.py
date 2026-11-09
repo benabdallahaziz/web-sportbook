@@ -22,6 +22,26 @@ class Settings(BaseSettings):
     EUREKA_ENABLED: bool = True
     INSTANCE_HOST: str = "127.0.0.1"
 
+    # RabbitMQ (Séance 8 - Communication Asynchrone)
+    RABBITMQ_HOST: str = "localhost"
+    RABBITMQ_PORT: int = 5672
+    RABBITMQ_USER: str = "guest"
+    RABBITMQ_PASSWORD: str = "guest"
+    RABBITMQ_EXCHANGE: str = "sportbook.events"
+    RABBITMQ_ENABLED: bool = False  # Enabled if RabbitMQ is running
+
+    # Sécurité & Keycloak / JWT (Séance 9 - Sécurité Microservices)
+    SECURITY_ENABLED: bool = False  # Set to True when Keycloak/JWT protection is enforced
+    JWT_SECRET_KEY: str = "sportbook-secret-key-super-secure-change-in-prod"
+    JWT_ALGORITHM: str = "HS256"
+    KEYCLOAK_URL: str = "http://localhost:8080"
+    KEYCLOAK_REALM: str = "sportbook"
+    KEYCLOAK_CLIENT_ID: str = "venue-management-service"
+
+    # Communication Synchrone Inter-Microservice (Séance 7 - OpenFeign / REST)
+    IDENTITY_SERVICE_URL: str = "http://localhost:8081"
+    GATEWAY_URL: str = "http://localhost:8085"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

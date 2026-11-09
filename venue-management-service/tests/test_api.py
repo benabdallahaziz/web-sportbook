@@ -4,9 +4,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Disable Eureka for tests
+# Disable Eureka & RabbitMQ & Security for unit tests
 from app.config import settings
 settings.EUREKA_ENABLED = False
+settings.RABBITMQ_ENABLED = False
+settings.SECURITY_ENABLED = False
 settings.DATABASE_URL = "sqlite:///:memory:"
 
 from app.database import Base, get_db
@@ -52,6 +54,35 @@ def test_root_and_health(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json()["status"] == "UP"
+
+
+def test_actuator_endpoints(client):
+    # 1. /actuator index
+    r = client.get("/actuator")
+    assert r.status_code == 200
+    assert "_links" in r.json()
+
+    # 2. /actuator/health
+    r = client.get("/actuator/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "UP"
+    assert "components" in r.json()
+
+    # 3. /actuator/info
+    r = client.get("/actuator/info")
+    assert r.status_code == 200
+    assert r.json()["app"]["name"] == "venue-management-service"
+    assert "architecture" in r.json()
+
+    # 4. /actuator/metrics
+    r = client.get("/actuator/metrics")
+    assert r.status_code == 200
+    assert "process.uptime" in r.json()["names"]
+
+    # 5. /actuator/metrics/process.uptime
+    r = client.get("/actuator/metrics/process.uptime")
+    assert r.status_code == 200
+    assert r.json()["name"] == "process.uptime"
 
 
 def test_create_and_get_venue(client):
@@ -103,6 +134,11 @@ def test_create_and_get_venue(client):
     detail = r.json()
     assert detail["name"] == "Arena Sport Center"
     assert len(detail["opening_hours"]) == 2
+
+    # 4. Summary endpoint
+    r = client.get(f"/api/venues/{venue_id}/summary")
+    assert r.status_code == 200
+    assert r.json()["name"] == "Arena Sport Center"
 
 
 def test_update_venue(client):
@@ -172,10 +208,15 @@ def test_field_crud_and_cascade_delete(client):
     assert len(r.json()) == 1
     assert r.json()[0]["name"] == "Padel Court 1"
 
-    # 4. Get Field by ID
+    # 4. Get Field by ID & Summary
     r = client.get(f"/api/fields/{field_id}")
     assert r.status_code == 200
     assert r.json()["name"] == "Court Central"
+
+    r = client.get(f"/api/fields/{field_id}/summary")
+    assert r.status_code == 200
+    assert r.json()["price_per_hour"] == 60.0
+    assert r.json()["venue_name"] == "Tennis & Padel Club"
 
     # 5. Update Field
     r = client.put(f"/api/fields/{field_id}", json={"price": 75.0, "name": "Court Central (éclairé)"})

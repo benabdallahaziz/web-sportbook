@@ -1,0 +1,1 @@
+from .identity_client import verify_owner_exists
