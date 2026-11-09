@@ -264,3 +264,22 @@ CREATE TABLE IF NOT EXISTS training_session (
   user_id BIGINT NULL,              -- sportif inscrit (microservice Identity)
   CONSTRAINT fk_ts_program FOREIGN KEY (program_id) REFERENCES training_program(id) ON DELETE CASCADE
 );
+
+-- ---------------------------------------------------------------------
+-- 7. Stats (Python) : copie locale des matchs terminés
+--    (la table est aussi créée automatiquement au démarrage du service)
+-- ---------------------------------------------------------------------
+CREATE DATABASE IF NOT EXISTS sportbook_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE sportbook_stats;
+
+CREATE TABLE IF NOT EXISTS match_result (
+  match_id BIGINT PRIMARY KEY,        -- id du match (microservice Tournament)
+  tournament_id BIGINT NOT NULL,
+  team1_id BIGINT NOT NULL,
+  team2_id BIGINT NOT NULL,
+  goals1 INT NOT NULL,
+  goals2 INT NOT NULL,
+  played_on DATE NULL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX ix_match_result_tournament_id (tournament_id)
+);

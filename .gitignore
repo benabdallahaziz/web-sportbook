@@ -6,3 +6,9 @@ target/
 node_modules/
 __pycache__/
 *.log
+# Python (stats-service)
+.venv/
+.pytest_cache/
+
+# Configuration locale
+.env

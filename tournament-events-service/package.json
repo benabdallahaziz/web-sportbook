@@ -1,0 +1,22 @@
+{
+  "name": "tournament-events-service",
+  "version": "1.0.0",
+  "description": "SportBook - Tournament & Events Microservice (Node.js)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "dotenv": "^16.4.5",
+    "eureka-js-client": "^4.5.0",
+    "express": "^4.19.2",
+    "mysql2": "^3.11.0",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

@@ -24,6 +24,7 @@ Clients (Web / Mobile)
 | Marketplace | `marketplace-service` | 8084 | /api/products, /api/cart, /api/orders |
 | Tournament & Events | `tournament-events-service` | 8086 | /api/tournaments, /api/teams, /api/matches |
 | Coach & Training | `coach-training-service` | 8087 | /api/coaches, /api/sessions, /api/programs |
+| Stats (Python) | `stats-service` | 8088 | /api/stats |
 
 **Règle d'or :** le nom enregistré dans Eureka (en minuscules) doit être exactement celui utilisé après `lb://` dans la Gateway, et les endpoints du service doivent commencer par le préfixe `/api/...` indiqué.
 
