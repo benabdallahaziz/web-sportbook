@@ -1,0 +1,117 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1>Validation</h1>
+    <p class="muted">
+      @if (loading()) { Chargement… }
+      @else if (total() === 0) { Tout est à jour : aucune proposition en attente. }
+      @else { {{ total() }} proposition(s) des utilisateurs à examiner. }
+    </p>
+  </div>
+  <div class="actions"><button class="btn ghost" (click)="load()">Actualiser</button></div>
+</header>
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }} <button class="btn small ghost" (click)="load()">Réessayer</button></div>
+}
+
+<nav class="tabs" role="tablist">
+  <button role="tab" [class.on]="tab() === 'tournaments'" [attr.aria-selected]="tab() === 'tournaments'" (click)="tab.set('tournaments')">
+    Tournois <i [class.hot]="tournaments().length">{{ tournaments().length }}</i>
+  </button>
+  <button role="tab" [class.on]="tab() === 'matches'" [attr.aria-selected]="tab() === 'matches'" (click)="tab.set('matches')">
+    Matchs <i [class.hot]="matches().length">{{ matches().length }}</i>
+  </button>
+  <button role="tab" [class.on]="tab() === 'registrations'" [attr.aria-selected]="tab() === 'registrations'" (click)="tab.set('registrations')">
+    Inscriptions <i [class.hot]="registrations().length">{{ registrations().length }}</i>
+  </button>
+</nav>
+
+@if (loading()) {
+  <div class="panel skeleton tall"></div>
+} @else {
+  <!-- ═════════ TOURNOIS PROPOSÉS ═════════ -->
+  @if (tab() === 'tournaments') {
+    @if (tournaments().length === 0) {
+      <div class="panel empty-state"><p class="empty-title">Aucun tournoi en attente.</p></div>
+    } @else {
+      <ul class="review-list">
+        @for (t of tournaments(); track t.id) {
+          <li class="panel review">
+            <div class="review-main">
+              <h2>{{ t.name }}</h2>
+              <p class="muted">
+                {{ fmtDate(t.start_date) }} → {{ fmtDate(t.end_date) }}
+                @if (durationDays(t.start_date, t.end_date); as d) { · {{ d }} jours }
+                · proposé par l’utilisateur #{{ t.created_by ?? '?' }}
+              </p>
+            </div>
+            <div class="review-actions">
+              <a class="btn small ghost" [routerLink]="['/tournaments/list', t.id]">Voir</a>
+              <button class="btn small danger" [disabled]="busy() === 't' + t.id" (click)="rejectTournament(t)">Refuser</button>
+              <button class="btn small approve" [disabled]="busy() === 't' + t.id" (click)="approveTournament(t)">Valider</button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  <!-- ═════════ MATCHS PROPOSÉS ═════════ -->
+  @if (tab() === 'matches') {
+    @if (matches().length === 0) {
+      <div class="panel empty-state"><p class="empty-title">Aucun match en attente.</p></div>
+    } @else {
+      <ul class="review-list">
+        @for (m of matches(); track m.id) {
+          <li class="panel review">
+            <div class="review-main">
+              <h2 class="duel-title">
+                <app-team-badge [name]="m.team1_name" /> {{ m.team1_name }}
+                <span class="vs">vs</span>
+                {{ m.team2_name }} <app-team-badge [name]="m.team2_name" />
+              </h2>
+              <p class="muted">
+                {{ fmtDate(m.date) }} · <a [routerLink]="['/tournaments/list', m.tournament_id]">{{ m.tournament_name }}</a>
+                · {{ m.round_name }} · proposé par l’utilisateur #{{ m.created_by ?? '?' }}
+              </p>
+              @if (!tournamentApproved(m)) {
+                <p class="hint warn">Le tournoi de ce match n’est pas encore validé : validez-le d’abord.</p>
+              }
+            </div>
+            <div class="review-actions">
+              <button class="btn small danger" [disabled]="busy() === 'm' + m.id" (click)="rejectMatch(m)">Refuser</button>
+              <button class="btn small approve" [disabled]="busy() === 'm' + m.id || !tournamentApproved(m)" (click)="approveMatch(m)">Valider</button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  <!-- ═════════ INSCRIPTIONS D'ÉQUIPES ═════════ -->
+  @if (tab() === 'registrations') {
+    @if (registrations().length === 0) {
+      <div class="panel empty-state"><p class="empty-title">Aucune inscription en attente.</p></div>
+    } @else {
+      <ul class="review-list">
+        @for (r of registrations(); track r.id) {
+          <li class="panel review">
+            <div class="review-main">
+              <h2 class="duel-title"><app-team-badge [name]="r.team_name" /> {{ r.team_name }}</h2>
+              <p class="muted">
+                {{ r.members }} joueurs · demande d’inscription à
+                <a [routerLink]="['/tournaments/list', r.tournament_id]">{{ r.tournament_name }}</a>
+                le {{ fmtDate(r.registration_date) }}
+              </p>
+            </div>
+            <div class="review-actions">
+              <button class="btn small danger" [disabled]="busy() === 'r' + r.id" (click)="decideRegistration(r, 'REJECTED')">Refuser</button>
+              <button class="btn small approve" [disabled]="busy() === 'r' + r.id" (click)="decideRegistration(r, 'CONFIRMED')">Confirmer</button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+}

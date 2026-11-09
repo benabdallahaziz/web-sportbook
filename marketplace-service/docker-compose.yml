@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # ── Base de données MySQL ──────────────────────────────────
+  marketplace-db:
+    image: mysql:8.0
+    container_name: sportbook_marketplace_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sportbook_marketplace
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/sportbook_databases.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sportbook-network
+
+  # ── Microservice Marketplace (FastAPI) ─────────────────────
+  marketplace-service:
+    build: .
+    container_name: sportbook_marketplace_service
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      - DB_HOST=marketplace-db
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=sportbook_marketplace
+      - SERVICE_PORT=8084
+      - EUREKA_URL=http://host.docker.internal:8761/eureka
+    depends_on:
+      - marketplace-db
+    networks:
+      - sportbook-network
+
+networks:
+  sportbook-network:
+    driver: bridge
+
+volumes:
+  db_data:

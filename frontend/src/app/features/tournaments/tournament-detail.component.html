@@ -1,0 +1,209 @@
+<a class="back-link" routerLink="/tournaments/list">← Tous les tournois</a>
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }} <button class="btn small ghost" (click)="load()">Réessayer</button></div>
+}
+@if (loading() && !tournament()) {
+  <div class="hero skeleton"></div>
+}
+@if (tournament(); as t) {
+  <header class="hero" [attr.data-status]="t.status">
+    <div class="hero-main">
+      <app-status [value]="t.status" />
+      <h1>{{ t.name }}</h1>
+      <p class="hero-dates">
+        {{ fmtDate(t.start_date) }} → {{ fmtDate(t.end_date) }}
+        @if (duration(); as d) { · {{ d }} jours }
+      </p>
+      @if (!access.isAdmin()) {
+        <p class="hero-facts">{{ kpis().teams }} équipe(s) inscrite(s) · {{ kpis().rounds }} tour(s) · {{ kpis().matches }} match(s)</p>
+      }
+    </div>
+    @if (access.canModify(t)) {
+      <div class="hero-actions">
+        <label class="inline-label"><span>Statut</span>
+          <select [ngModel]="t.status" (ngModelChange)="changeStatus($event)">
+            @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+          </select>
+        </label>
+        <button class="btn small danger on-dark" (click)="removeTournament()">Supprimer</button>
+      </div>
+    }
+  </header>
+
+  @if (t.approval_status !== 'APPROVED') {
+    <div class="approval-banner" [attr.data-approval]="t.approval_status" role="status">
+      <div>
+        @if (t.approval_status === 'PENDING') {
+          <strong>En attente de validation</strong>
+          <span>Ce tournoi n’est visible que par son auteur et les administrateurs. Les inscriptions ouvriront après validation.</span>
+        } @else {
+          <strong>Proposition refusée</strong>
+          <span>Motif : {{ t.rejection_reason || 'non précisé' }}.@if (access.isOwner(t)) { Modifiez le tournoi depuis la liste pour le soumettre à nouveau. }</span>
+        }
+      </div>
+      @if (access.isAdmin()) {
+        <div class="actions">
+          <button class="btn small danger" (click)="decideTournament('REJECTED')">Refuser</button>
+          <button class="btn small approve" (click)="decideTournament('APPROVED')">Valider le tournoi</button>
+        </div>
+      }
+    </div>
+  }
+
+  @if (access.isAdmin()) {
+  <section class="kpis" aria-label="Chiffres du tournoi">
+    <div class="kpi"><span class="kpi-value">{{ kpis().teams }}</span><span class="kpi-label">équipes inscrites</span></div>
+    <div class="kpi"><span class="kpi-value">{{ kpis().rounds }}</span><span class="kpi-label">tours</span></div>
+    <div class="kpi"><span class="kpi-value">{{ kpis().matches }}</span><span class="kpi-label">matchs</span></div>
+    <div class="kpi accent"><span class="kpi-value">{{ kpis().played }}</span><span class="kpi-label">terminés</span></div>
+  </section>
+  }
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" [class.on]="tab() === 'teams'" [attr.aria-selected]="tab() === 'teams'" (click)="selectTab('teams')">Équipes <i>{{ kpis().teams }}</i></button>
+    <button role="tab" [class.on]="tab() === 'schedule'" [attr.aria-selected]="tab() === 'schedule'" (click)="selectTab('schedule')">Calendrier <i>{{ kpis().matches }}</i></button>
+    <button role="tab" [class.on]="tab() === 'ranking'" [attr.aria-selected]="tab() === 'ranking'" (click)="selectTab('ranking')">Classement</button>
+  </nav>
+
+  <!-- ═════════ ÉQUIPES INSCRITES ═════════ -->
+  @if (tab() === 'teams') {
+    <section class="panel">
+      @if (access.isLoggedIn() && t.approval_status !== 'APPROVED') {
+        <p class="hint">Les inscriptions ouvriront dès que ce tournoi aura été validé.</p>
+      }
+      @if (access.isLoggedIn() && t.approval_status === 'APPROVED') {
+        <form class="inline-form" (ngSubmit)="register()">
+          <select name="team" [(ngModel)]="teamToRegister" aria-label="Équipe à inscrire" [disabled]="!available().length">
+            <option [ngValue]="null">{{ available().length ? (access.isAdmin() ? 'Choisir une équipe à inscrire…' : 'Choisir une de mes équipes…') : (access.isAdmin() ? 'Toutes les équipes sont inscrites' : 'Aucune de vos équipes à inscrire') }}</option>
+            @for (team of available(); track team.id) { <option [ngValue]="team.id">{{ team.name }} ({{ team.members }} joueurs)</option> }
+          </select>
+          <button class="btn primary" type="submit" [disabled]="!teamToRegister">{{ access.isAdmin() ? 'Inscrire' : 'Demander l’inscription' }}</button>
+          <a class="btn ghost" routerLink="/tournaments/teams">{{ access.isAdmin() ? 'Gérer les équipes' : 'Créer mon équipe' }}</a>
+        </form>
+      }
+      @if (registered().length === 0) {
+        <p class="empty">Aucune équipe inscrite pour l’instant.</p>
+      } @else {
+        <ul class="team-list">
+          @for (team of registered(); track team.id) {
+            <li>
+              <app-team-badge [name]="team.name" />
+              <div class="team-info">
+                <strong>{{ team.name }}</strong>
+                <span class="muted small">{{ team.members }} joueurs · inscrite le {{ fmtDate(team.registration_date) }}</span>
+              </div>
+              <app-status [value]="team.registration_status" />
+              @if (access.isAdmin() && team.registration_status === 'PENDING') {
+                <button class="btn small approve" (click)="decideRegistration(team, 'CONFIRMED')">Confirmer</button>
+                <button class="btn small ghost" (click)="decideRegistration(team, 'REJECTED')">Refuser</button>
+              }
+              @if (access.canManageTeam(team)) { <button class="btn small danger" (click)="unregister(team)">Retirer</button> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  <!-- ═════════ CALENDRIER : TOURS + MATCHS ═════════ -->
+  @if (tab() === 'schedule') {
+    @if (canOrganize()) {
+      <form class="panel inline-form" (ngSubmit)="addRound()">
+        <input name="roundName" [(ngModel)]="roundName" placeholder="Nouveau tour (ex. Quarts de finale)" aria-label="Nom du tour" />
+        <input name="roundOrder" type="number" min="1" [(ngModel)]="roundOrder" class="narrow" aria-label="Ordre" />
+        <button class="btn primary" type="submit" [disabled]="!roundName.trim()">Ajouter le tour</button>
+      </form>
+    }
+
+    @if (schedule().length === 0) {
+      <div class="panel empty-state"><p class="empty-title">Aucun tour.</p><p class="muted">{{ canOrganize() ? 'Ajoutez un tour (Poules, Demi-finales, Finale…) pour programmer des matchs.' : 'L’organisateur n’a pas encore défini de tours.' }}</p></div>
+    }
+
+    @for (block of schedule(); track block.round.id) {
+      <section class="panel round-block">
+        <header class="round-head">
+          <h2><span class="round-no">{{ block.round.round_order }}</span> {{ block.round.name }}</h2>
+          @if (canPlan() && draftRound() !== block.round.id) {
+            <button class="btn small ghost" (click)="openDraft(block.round.id)">{{ access.isAdmin() ? '+ Match' : '+ Proposer un match' }}</button>
+          }
+        </header>
+
+        @if (draftRound() === block.round.id) {
+          <form class="inline-form draft" (ngSubmit)="createMatch(block.round.id)">
+            <select name="t1" [(ngModel)]="draft.team1_id" aria-label="Équipe 1">
+              <option [ngValue]="null">Équipe 1…</option>
+              @for (team of matchTeams(); track team.id) { <option [ngValue]="team.id">{{ team.name }}</option> }
+            </select>
+            <span class="vs">vs</span>
+            <select name="t2" [(ngModel)]="draft.team2_id" aria-label="Équipe 2">
+              <option [ngValue]="null">Équipe 2…</option>
+              @for (team of matchTeams(); track team.id) { <option [ngValue]="team.id">{{ team.name }}</option> }
+            </select>
+            <input name="date" type="date" [(ngModel)]="draft.date" aria-label="Date" class="narrow-date" />
+            <button class="btn primary" type="submit">{{ access.isAdmin() ? 'Programmer' : 'Proposer' }}</button>
+            <button class="btn ghost" type="button" (click)="draftRound.set(null)">Annuler</button>
+          </form>
+          @if (registered().length < 2) { <p class="hint">Moins de 2 équipes inscrites : toutes les équipes sont proposées.</p> }
+          @if (!access.isAdmin()) { <p class="hint">Le match sera soumis à la validation d’un administrateur.</p> }
+        }
+
+        @if (block.matches.length === 0) {
+          <p class="muted small">Aucun match dans ce tour.</p>
+        } @else {
+          <ul class="match-list">
+            @for (m of block.matches; track m.id) {
+              <li class="scoreline" [attr.data-status]="m.status" [attr.data-approval]="m.approval_status">
+                <span class="when">{{ fmtDate(m.date, true) }}</span>
+                <span class="side home"><app-team-badge [name]="m.team1_name" /> {{ m.team1_name }}</span>
+                @if (access.isAdmin() && m.approval_status === 'APPROVED') {
+                  <form class="score-edit" (ngSubmit)="saveScore(m)">
+                    <input [name]="'s' + m.id" [(ngModel)]="scores[m.id]" placeholder="– : –" aria-label="Score" />
+                    <button class="btn small primary" type="submit" title="PATCH /api/matches/{{ m.id }}/score">OK</button>
+                  </form>
+                } @else {
+                  <span class="score">{{ m.score || 'vs' }}</span>
+                }
+                <span class="side away">{{ m.team2_name }} <app-team-badge [name]="m.team2_name" /></span>
+                <span class="pills">
+                  <app-status [value]="m.status" />
+                  @if (m.approval_status !== 'APPROVED') { <app-status [value]="m.approval_status" [attr.title]="m.rejection_reason" /> }
+                </span>
+                <span class="row-actions">
+                  @if (access.isAdmin() && m.approval_status === 'PENDING') {
+                    <button class="icon-btn ok" (click)="decideMatch(m, 'APPROVED')" aria-label="Valider le match" title="Valider">✓</button>
+                    <button class="icon-btn" (click)="decideMatch(m, 'REJECTED')" aria-label="Refuser le match" title="Refuser">⨯</button>
+                  }
+                  @if (access.canModify(m)) { <button class="icon-btn" (click)="deleteMatch(m)" aria-label="Supprimer le match" title="Supprimer">×</button> }
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  }
+
+  <!-- ═════════ CLASSEMENT (stats-service Python) ═════════ -->
+  @if (tab() === 'ranking') {
+    <section class="panel">
+      <div class="section-head">
+        <p class="muted small">Calculé par le microservice <code>stats-service</code> (Python) à partir des matchs terminés.</p>
+        <div class="actions">
+          @if (access.isAdmin()) { <button class="btn small ghost" (click)="syncAndReload()">Resynchroniser</button> }
+          <a class="btn small ghost" routerLink="/tournaments/ranking">Pronostics</a>
+        </div>
+      </div>
+      @if (rankingLoading()) {
+        <p class="empty">Calcul du classement…</p>
+      } @else {
+        @if (rankingError(); as err) {
+          <div class="alert" role="alert">Classement indisponible : {{ err.message }}</div>
+        }
+        @if (ranking(); as r) {
+          <app-ranking-table [rows]="r.ranking" [orderBy]="r.order_by" />
+        }
+      }
+    </section>
+  }
+}

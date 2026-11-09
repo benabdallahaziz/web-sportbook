@@ -1,0 +1,159 @@
+<!-- ═════════ BANDEAU D'ACCUEIL ═════════ -->
+<section class="hero-site">
+  <div class="hero-copy">
+    <p class="kicker">Salut {{ firstName() }} 👋</p>
+    <h1>Prêt pour ton<br />prochain match ?</h1>
+    <p class="lead">Crée ton équipe, rejoins un tournoi près de chez toi et suis tes résultats.</p>
+    <div class="hero-cta">
+      <a class="btn-cta" routerLink="/tournaments/list">Trouver un tournoi</a>
+      <a class="btn-cta ghost" routerLink="/tournaments/teams">{{ myTeams().length ? 'Mes équipes' : 'Créer mon équipe' }}</a>
+    </div>
+  </div>
+
+  <div class="next-match" aria-live="polite">
+    @if (loading()) {
+      <div class="next-skeleton"></div>
+    } @else {
+      @if (nextMatch(); as m) {
+      <span class="next-label">Ton prochain match · {{ countdown(m.date) }}</span>
+      <div class="next-teams">
+        <div><app-team-badge [name]="m.team1_name" /><strong>{{ m.team1_name }}</strong></div>
+        <span class="next-vs">VS</span>
+        <div><app-team-badge [name]="m.team2_name" /><strong>{{ m.team2_name }}</strong></div>
+      </div>
+      <p class="next-meta">{{ fmtDate(m.date) }} · {{ m.tournament_name }} · {{ m.round_name }}</p>
+      @if (m.approval_status !== 'APPROVED') { <p class="next-warn">En attente de validation par un administrateur</p> }
+      <a class="next-link" [routerLink]="['/tournaments/list', m.tournament_id]">Voir le tournoi →</a>
+    } @else {
+      <span class="next-label">Ton prochain match</span>
+      <p class="next-empty">
+        {{ myTeams().length ? 'Aucun match programmé pour l’instant. Inscris ton équipe à un tournoi !' : 'Crée ton équipe pour commencer à jouer.' }}
+      </p>
+      <a class="next-link" [routerLink]="myTeams().length ? '/tournaments/list' : '/tournaments/teams'">
+        {{ myTeams().length ? 'Voir les tournois →' : 'Créer mon équipe →' }}
+      </a>
+      }
+    }
+  </div>
+</section>
+
+@if (loadError(); as err) {
+  <div class="alert" role="alert">{{ err.message }}</div>
+}
+
+@if (!loading()) {
+  <!-- ═════════ MES ÉQUIPES ═════════ -->
+  <section class="site-section">
+    <header class="site-section-head">
+      <h2>Mes équipes</h2>
+      <a class="link-more" routerLink="/tournaments/teams">Gérer mes équipes →</a>
+    </header>
+    <div class="team-strip">
+      @for (t of myTeams(); track t.id) {
+        <a class="team-tile" routerLink="/tournaments/teams">
+          <app-team-badge [name]="t.name" />
+          <strong>{{ t.name }}</strong>
+          <span class="muted small">{{ t.members }} joueurs</span>
+          @if (rankOf(t.id); as r) {
+            <span class="team-rank">{{ r.position }}<sup>e</sup> · {{ r.elo.toFixed(0) }} Elo</span>
+            <app-form-dots [form]="r.form" />
+          } @else {
+            <span class="team-rank muted">Pas encore classée</span>
+          }
+        </a>
+      }
+      <a class="team-tile add" routerLink="/tournaments/teams">
+        <span class="plus">+</span>
+        <strong>Nouvelle équipe</strong>
+        <span class="muted small">Invite tes amis</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ═════════ AGENDA & RÉSULTATS ═════════ -->
+  @if (laterMatches().length || results().length) {
+    <section class="site-section two-cols">
+      @if (laterMatches().length) {
+        <div>
+          <header class="site-section-head"><h2>À venir</h2></header>
+          <ul class="agenda">
+            @for (m of laterMatches(); track m.id) {
+              <li>
+                <span class="agenda-date">{{ fmtDate(m.date, true) }}</span>
+                <span><strong>{{ m.team1_name }}</strong> vs <strong>{{ m.team2_name }}</strong><br />
+                  <span class="muted small">{{ m.tournament_name }}</span></span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+      @if (results().length) {
+        <div>
+          <header class="site-section-head"><h2>Derniers résultats</h2><a class="link-more" routerLink="/tournaments/ranking">Classement →</a></header>
+          <ul class="agenda">
+            @for (r of results(); track r.m.id) {
+              <li>
+                <span class="outcome" [attr.data-r]="r.outcome">{{ r.outcome }}</span>
+                <span><strong>{{ r.m.team1_name }} {{ r.m.score }} {{ r.m.team2_name }}</strong><br />
+                  <span class="muted small">{{ fmtDate(r.m.date) }} · {{ r.m.tournament_name }}</span></span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ═════════ TOURNOIS À REJOINDRE ═════════ -->
+  <section class="site-section">
+    <header class="site-section-head">
+      <h2>Tournois à rejoindre</h2>
+      <a class="link-more" routerLink="/tournaments/list">Tous les tournois →</a>
+    </header>
+    @if (openTournaments().length === 0) {
+      <p class="muted">Aucun tournoi ouvert pour le moment. Tu peux en proposer un !</p>
+    } @else {
+      <div class="poster-grid">
+        @for (t of openTournaments(); track t.id) {
+          <a class="poster" [routerLink]="['/tournaments/list', t.id]" [attr.data-status]="t.status">
+            <div class="poster-cover">
+              <span class="poster-date">{{ fmtDate(t.start_date, true) }}</span>
+              <app-status [value]="t.status" />
+            </div>
+            <div class="poster-body">
+              <h3>{{ t.name }}</h3>
+              <p class="muted small">{{ fmtDate(t.start_date) }} → {{ fmtDate(t.end_date) }}</p>
+              <span class="link-more">Inscrire mon équipe →</span>
+            </div>
+          </a>
+        }
+        <a class="poster propose" routerLink="/tournaments/list">
+          <div class="poster-body">
+            <span class="plus">+</span>
+            <h3>Organise ton tournoi</h3>
+            <p class="muted small">Propose-le : un administrateur le validera.</p>
+          </div>
+        </a>
+      </div>
+    }
+  </section>
+
+  <!-- ═════════ MES PROPOSITIONS ═════════ -->
+  @if (proposals().length) {
+    <section class="site-section">
+      <header class="site-section-head"><h2>Mes propositions</h2></header>
+      <ul class="agenda">
+        @for (p of proposals(); track $index) {
+          <li>
+            <span class="kind">{{ p.kind }}</span>
+            <span class="grow"><a [routerLink]="p.link"><strong>{{ p.label }}</strong></a>
+              @if (p.status === 'REJECTED') { <br /><span class="reject-reason">Refusé : {{ p.reason || 'motif non précisé' }}</span> }
+              @else { <br /><span class="muted small">Un administrateur va l’examiner.</span> }
+            </span>
+            <app-status [value]="p.status" />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+}
