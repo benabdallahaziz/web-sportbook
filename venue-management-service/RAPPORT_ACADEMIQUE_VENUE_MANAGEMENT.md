@@ -143,7 +143,10 @@ Implémentée dans `app/security/jwt_auth.py` :
 - Décodage et extraction des rôles utilisateur depuis le payload standard de Keycloak (`realm_access.roles` et `resource_access`).
 - **Contrôle d'Accès Basé sur les Rôles (RBAC) :**
   - Consultation publique (`GET /api/venues`, `GET /api/fields`) accessible sans restriction pour la recherche des usagers.
-  - Création, mise à jour et suppression (`POST`, `PUT`, `DELETE`) restreintes aux rôles `ROLE_ADMIN` et `ROLE_OWNER`.
+  - Création, mise à jour et suppression (`POST`, `PUT`, `DELETE`) restreintes aux profils habilités : `ADMIN`, `OWNER` et `GERANT`.
+- **Interface Utilisateur Dédiée (Frontend Angular) :**
+  - Vue **Sportif** (`SPORTIF`) : Accès public au catalogue, recherche textuelle dynamique, filtres multicritères (ville, sport), consultation des horaires et des tarifs par discipline en lecture seule sécurisée.
+  - Vue **Gérant** (`GERANT` / `ADMIN`) : Accès aux boutons de gestion administrative (`+ Nouveau Complexe`, `+ Terrain`, modification ✏️, suppression 🗑️) avec formulaires modaux réactifs pilotés par les signaux Angular.
 - **Mode Dev & Test :** Variable `SECURITY_ENABLED=false` permettant les tests automatisés et l'exécution hors ligne.
 
 ---
