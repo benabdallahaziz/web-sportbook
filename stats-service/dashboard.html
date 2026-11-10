@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stats service</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f4f5f7; margin: 0; padding: 20px; color: #222; }
+  .box { max-width: 900px; margin: auto; background: #fff; border-radius: 12px; padding: 24px; border: 1px solid #ddd; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: #666; margin: 0 0 20px; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .card { flex: 1; min-width: 140px; background: #f4f5f7; border-radius: 8px; padding: 14px; }
+  .card small { color: #666; display: block; }
+  .card b { font-size: 26px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 14px; }
+  .bar-row span.n { width: 140px; color: #555; }
+  .bar-bg { flex: 1; background: #eee; border-radius: 4px; height: 14px; }
+  .bar { height: 14px; background: #2f6fdb; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid #eee; }
+  th { color: #666; font-weight: normal; border-top: none; }
+  input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; margin-right: 6px; }
+  button { padding: 8px 14px; border: 1px solid #aaa; background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #eef; }
+  .del { color: #c0392b; border-color: #c0392b; }
+  .form { margin: 12px 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  h3 { margin-top: 28px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="top">
+    <div>
+      <h1>Stats service</h1>
+      <p class="sub">Tableau de bord du sportbook</p>
+    </div>
+    <button onclick="loadAll()">Actualiser</button>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <h3>Répartition par type</h3>
+  <div id="bars"></div>
+
+  <h3>Événements</h3>
+  <div class="form">
+    <input id="type" placeholder="type (ex: booking_created)">
+    <input id="desc" placeholder="description">
+    <button onclick="addEvent()">Ajouter</button>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Type</th><th>Description</th><th>Actions</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <h3>Classement des équipes</h3>
+  <div class="form">
+    <input id="tid" placeholder="id équipe" style="width:90px">
+    <input id="tname" placeholder="nom de l'équipe">
+    <input id="tpts" placeholder="points" style="width:90px">
+    <input id="telo" placeholder="elo" style="width:90px">
+    <button onclick="addTeam()">Ajouter</button>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Équipe</th><th>Points</th><th>Elo</th><th>Actions</th></tr></thead>
+    <tbody id="ranking"></tbody>
+  </table>
+</div>
+
+<script>
+const API = '/api/stats';
+
+async function loadAll() {
+  const stats  = await (await fetch(API)).json();
+  const events = await (await fetch(API + '/events')).json();
+
+  let html = '<div class="card"><small>Total événements</small><b>' + events.length + '</b></div>';
+  Object.entries(stats).slice(0, 3).forEach(([t, n]) => {
+    html += '<div class="card"><small>' + t + '</small><b>' + n + '</b></div>';
+  });
+  document.getElementById('cards').innerHTML = html;
+
+  const max = Math.max(1, ...Object.values(stats));
+  document.getElementById('bars').innerHTML = Object.entries(stats).map(([t, n]) =>
+    '<div class="bar-row"><span class="n">' + t + '</span>' +
+    '<div class="bar-bg"><div class="bar" style="width:' + (n / max * 100) + '%"></div></div>' +
+    '<span>' + n + '</span></div>').join('');
+
+  document.getElementById('rows').innerHTML = events.map(e =>
+    '<tr><td>' + e.id + '</td><td>' + e.type + '</td><td>' + (e.description || '') + '</td>' +
+    '<td><button onclick="editEvent(' + e.id + ')">Modifier</button> ' +
+    '<button class="del" onclick="delEvent(' + e.id + ')">Supprimer</button></td></tr>').join('');
+
+  loadRanking();
+}
+
+async function addEvent() {
+  const type = document.getElementById('type').value.trim();
+  if (!type) { alert('Le type est obligatoire'); return; }
+  await fetch(API + '/events', {
+    method: 'POST',
+    body: JSON.stringify({ type: type, description: document.getElementById('desc').value })
+  });
+  document.getElementById('type').value = '';
+  document.getElementById('desc').value = '';
+  loadAll();
+}
+
+async function editEvent(id) {
+  const type = prompt('Nouveau type :');
+  if (!type) return;
+  await fetch(API + '/events/' + id, { method: 'PUT', body: JSON.stringify({ type: type }) });
+  loadAll();
+}
+
+async function delEvent(id) {
+  if (!confirm('Supprimer cet événement ?')) return;
+  await fetch(API + '/events/' + id, { method: 'DELETE' });
+  loadAll();
+}
+
+async function loadRanking() {
+  const r = await (await fetch(API + '/ranking?order_by=points')).json();
+  document.getElementById('ranking').innerHTML = r.ranking.map((t, i) =>
+    '<tr><td>' + (i + 1) + '</td><td>' + (t.team_name || ('Équipe #' + t.team_id)) + '</td>' +
+    '<td>' + t.points + '</td><td>' + t.elo + '</td>' +
+    '<td><button class="del" onclick="delTeam(' + t.id + ')">Supprimer</button></td></tr>').join('');
+}
+
+async function addTeam() {
+  const id = parseInt(document.getElementById('tid').value);
+  if (!id) { alert("L'id de l'équipe est obligatoire"); return; }
+  await fetch(API + '/ranking', {
+    method: 'POST',
+    body: JSON.stringify({
+      team_id: id,
+      team_name: document.getElementById('tname').value,
+      points: parseInt(document.getElementById('tpts').value) || 0,
+      elo: parseFloat(document.getElementById('telo').value) || 1000
+    })
+  });
+  ['tid', 'tname', 'tpts', 'telo'].forEach(x => document.getElementById(x).value = '');
+  loadRanking();
+}
+
+async function delTeam(id) {
+  if (!confirm('Supprimer cette équipe du classement ?')) return;
+  await fetch(API + '/ranking/' + id, { method: 'DELETE' });
+  loadRanking();
+}
+
+loadAll();
+</script>
+</body>
+</html>
