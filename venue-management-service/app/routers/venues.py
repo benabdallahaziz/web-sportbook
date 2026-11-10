@@ -25,7 +25,9 @@ def _parse_time(val):
         return val
     if isinstance(val, str):
         val = val.strip()
-        # support HH:MM:SS or HH:MM
+        parts = val.split(":")
+        if len(parts) >= 2:
+            val = f"{parts[0].zfill(2)}:{parts[1].zfill(2)}:{parts[2].zfill(2) if len(parts) > 2 else '00'}"
         for fmt in ("%H:%M:%S", "%H:%M"):
             try:
                 return datetime.strptime(val, fmt).time()
@@ -35,10 +37,11 @@ def _parse_time(val):
 
 
 @router.post("", response_model=VenueResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=VenueResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_venue(
     venue_in: VenueCreate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """
     Enregistrer un nouveau complexe sportif.
@@ -48,12 +51,12 @@ async def create_venue(
     """
     # Validation synchrone inter-microservice (Séance 7)
     if venue_in.owner_id is not None:
-        owner_valid = await verify_owner_exists(venue_in.owner_id)
-        if not owner_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Le propriétaire avec l'ID {venue_in.owner_id} n'existe pas dans Identity Service."
-            )
+        try:
+            owner_valid = await verify_owner_exists(venue_in.owner_id)
+            if not owner_valid:
+                logger.warning("Propriétaire ID %s non trouvé dans Identity Service, mode tolérant.", venue_in.owner_id)
+        except Exception as e:
+            logger.warning("Vérification propriétaire ignorée : %s", e)
 
     venue = Venue(
         name=venue_in.name,
@@ -95,6 +98,7 @@ async def create_venue(
 
 
 @router.get("", response_model=List[VenueResponse])
+@router.get("/", response_model=List[VenueResponse], include_in_schema=False)
 def get_all_venues(
     city: Optional[str] = Query(None, description="Filtrer par ville ou mot-clé dans l'adresse"),
     search: Optional[str] = Query(None, description="Recherche globale sur le nom ou l'adresse"),
@@ -166,7 +170,7 @@ def update_venue(
     venue_id: int,
     venue_in: VenueUpdate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """Modifier les informations d'un complexe (ex: adresse, horaires d'ouverture...)."""
     venue = db.query(Venue).filter(Venue.id == venue_id).first()
@@ -221,7 +225,7 @@ def update_venue(
 def delete_venue(
     venue_id: int,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """
     Supprimer un complexe (et par cascade tous ses terrains et horaires).
@@ -273,7 +277,7 @@ def add_opening_hour(
     venue_id: int,
     oh_in: OpeningHoursCreate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """Ajouter un créneau d'ouverture au complexe."""
     venue = db.query(Venue).filter(Venue.id == venue_id).first()

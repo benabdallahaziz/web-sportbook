@@ -11,10 +11,11 @@ router = APIRouter(prefix="/api/fields", tags=["Fields"])
 
 
 @router.post("", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_field(
     field_in: FieldCreate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """
     Ajouter un nouveau terrain lié à un complexe.
@@ -51,6 +52,7 @@ def create_field(
 
 
 @router.get("", response_model=List[FieldResponse])
+@router.get("/", response_model=List[FieldResponse], include_in_schema=False)
 def get_all_fields(
     venue_id: Optional[int] = Query(None, description="Filtrer par ID du complexe"),
     sport: Optional[str] = Query(None, description="Filtrer par sport (Football, Tennis, Padel...)"),
@@ -115,7 +117,7 @@ def update_field(
     field_id: int,
     field_in: FieldUpdate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """Modifier les informations d'un terrain."""
     field = db.query(Field).filter(Field.id == field_id).first()
@@ -160,7 +162,7 @@ def update_field(
 def delete_field(
     field_id: int,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER"]))
+    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
 ):
     """
     Supprimer un terrain.

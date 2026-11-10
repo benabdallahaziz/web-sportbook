@@ -653,7 +653,9 @@ export class VenuesCatalogComponent implements OnInit {
         });
       },
       error: (err) => {
-        this.notify.error('Erreur lors du chargement des complexes sportifs.');
+        console.error('Erreur chargement complexes:', err);
+        const msg = err.message || err.error?.detail || 'Erreur lors du chargement des complexes sportifs.';
+        this.notify.error(msg);
         this.loading.set(false);
       }
     });
@@ -767,17 +769,30 @@ export class VenuesCatalogComponent implements OnInit {
         }
       });
     } else {
+      const hours: any[] = [];
+      if (this.newHour?.day && this.newHour?.opening_time && this.newHour?.closing_time) {
+        const formatTime = (t: string) => {
+          if (!t) return '00:00:00';
+          const parts = t.split(':');
+          if (parts.length === 2) return `${t}:00`;
+          return t;
+        };
+        hours.push({
+          day: this.newHour.day,
+          opening_time: formatTime(this.newHour.opening_time),
+          closing_time: formatTime(this.newHour.closing_time)
+        });
+      }
+
       const payload: any = {
-        ...this.venueForm,
-        owner_id: this.auth.user()?.id || 1,
-        opening_hours: [
-          {
-            day: this.newHour.day,
-            opening_time: `${this.newHour.opening_time}:00`,
-            closing_time: `${this.newHour.closing_time}:00`
-          }
-        ]
+        name: this.venueForm.name.trim(),
+        address: this.venueForm.address?.trim() || undefined,
+        phone: this.venueForm.phone?.trim() || undefined,
+        owner_id: this.auth.user()?.id || undefined,
       };
+      if (hours.length > 0) {
+        payload.opening_hours = hours;
+      }
 
       this.api.createVenue(payload).subscribe({
         next: () => {
@@ -787,7 +802,9 @@ export class VenuesCatalogComponent implements OnInit {
           this.loadVenues();
         },
         error: (err) => {
-          this.notify.error(err.error?.detail || 'Erreur lors de la création du complexe.');
+          console.error('Erreur createVenue:', err);
+          const detail = err.message || err.error?.detail || (typeof err.error === 'string' ? err.error : null);
+          this.notify.error(detail || 'Erreur lors de la création du complexe.');
           this.saving.set(false);
         }
       });

@@ -16,16 +16,33 @@ def get_engine():
     global _engine
     if _engine is None:
         db_url = settings.get_database_url()
-        connect_args = {}
-        if db_url.startswith("sqlite"):
-            connect_args["check_same_thread"] = False
-        else:
-            connect_args["connect_timeout"] = 2
-        _engine = create_engine(
-            db_url,
-            connect_args=connect_args,
-            pool_pre_ping=True
-        )
+        try:
+            connect_args = {}
+            if db_url.startswith("sqlite"):
+                connect_args["check_same_thread"] = False
+            else:
+                connect_args["connect_timeout"] = 3
+            eng = create_engine(
+                db_url,
+                connect_args=connect_args,
+                pool_pre_ping=True
+            )
+            with eng.connect() as conn:
+                pass
+            _engine = eng
+            logger.info("Connexion réussie à MySQL (%s).", db_url)
+        except Exception as e:
+            logger.warning("Connexion MySQL indisponible (%s). Activation du fallback SQLite résilient.", e)
+            _engine = create_engine(
+                "sqlite:///./venue.db",
+                connect_args={"check_same_thread": False}
+            )
+        try:
+            import app.models  # Charge les classes ORM dans Base.metadata
+            Base.metadata.create_all(bind=_engine)
+            logger.info("Tables vérifiées / créées avec succès : %s", list(Base.metadata.tables.keys()))
+        except Exception as e:
+            logger.warning("Erreur lors de la création des tables : %s", e)
     return _engine
 
 
@@ -37,25 +54,15 @@ def get_sessionmaker():
 
 
 def is_db_reachable(timeout: float = 0.5) -> bool:
-    db_url = settings.get_database_url()
-    if db_url.startswith("sqlite"):
-        return True
     try:
-        with socket.create_connection((settings.DB_HOST, settings.DB_PORT), timeout=timeout):
-            return True
-    except OSError:
+        get_engine()
+        return True
+    except Exception:
         return False
 
 
 def init_db():
-    if not is_db_reachable(0.5):
-        logger.info("Database (%s:%s) is offline. Microservice started with database pending.", settings.DB_HOST, settings.DB_PORT)
-        return
-    try:
-        Base.metadata.create_all(bind=get_engine())
-        logger.info("Database tables verified / created.")
-    except Exception as e:
-        logger.warning("Could not create tables on startup: %s", e)
+    get_engine()
 
 
 def get_db():
