@@ -1,5 +1,6 @@
 using CoachTrainingService.Dtos;
 using CoachTrainingService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoachTrainingService.Controllers;
@@ -15,14 +16,14 @@ public class ProgramsController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Lister tous les programmes d'entraînement.</summary>
+    /// <summary>Lister tous les programmes d'entraînement (Public).</summary>
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         return Ok(await _service.GetAllAsync());
     }
 
-    /// <summary>Obtenir le détail d'un programme.</summary>
+    /// <summary>Obtenir le détail d'un programme (Public).</summary>
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id)
     {
@@ -30,15 +31,16 @@ public class ProgramsController : ControllerBase
         return prog == null ? NotFound($"Programme {id} introuvable.") : Ok(prog);
     }
 
-    /// <summary>Lister tous les programmes d'un coach donné.</summary>
+    /// <summary>Lister tous les programmes d'un coach donné (Public).</summary>
     [HttpGet("coach/{coachId:long}")]
     public async Task<IActionResult> GetByCoach(long coachId)
     {
         return Ok(await _service.GetByCoachAsync(coachId));
     }
 
-    /// <summary>Créer un nouveau programme d'entraînement.</summary>
+    /// <summary>Créer un nouveau programme d'entraînement (ADMIN UNIQUEMENT).</summary>
     [HttpPost]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> Create([FromBody] CreateProgramDto dto)
     {
         var created = await _service.CreateAsync(dto);
@@ -47,16 +49,18 @@ public class ProgramsController : ControllerBase
             : CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    /// <summary>Modifier un programme existant.</summary>
+    /// <summary>Modifier un programme existant (ADMIN UNIQUEMENT).</summary>
     [HttpPut("{id:long}")]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> Update(long id, [FromBody] UpdateProgramDto dto)
     {
         var updated = await _service.UpdateAsync(id, dto);
         return updated == null ? NotFound($"Programme {id} introuvable.") : Ok(updated);
     }
 
-    /// <summary>Supprimer un programme (et toutes ses séances associées).</summary>
+    /// <summary>Supprimer un programme (ADMIN UNIQUEMENT).</summary>
     [HttpDelete("{id:long}")]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> Delete(long id)
     {
         var deleted = await _service.DeleteAsync(id);

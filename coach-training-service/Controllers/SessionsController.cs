@@ -1,5 +1,6 @@
 using CoachTrainingService.Dtos;
 using CoachTrainingService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CoachTrainingService.Controllers;
@@ -15,7 +16,7 @@ public class SessionsController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Obtenir le détail d'une séance.</summary>
+    /// <summary>Obtenir le détail d'une séance (Public).</summary>
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id)
     {
@@ -23,7 +24,7 @@ public class SessionsController : ControllerBase
         return session == null ? NotFound($"Séance {id} introuvable.") : Ok(session);
     }
 
-    /// <summary>Planning des séances pour un programme donné.</summary>
+    /// <summary>Planning des séances pour un programme donné (Public).</summary>
     [HttpGet("program/{programId:long}")]
     public async Task<IActionResult> GetByProgram(long programId)
     {
@@ -37,8 +38,9 @@ public class SessionsController : ControllerBase
         return Ok(await _service.GetByUserAsync(userId));
     }
 
-    /// <summary>Planifier une nouvelle séance de coaching.</summary>
+    /// <summary>Planifier une nouvelle séance d'entraînement (ADMIN UNIQUEMENT).</summary>
     [HttpPost]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> Create([FromBody] CreateSessionDto dto)
     {
         var created = await _service.CreateAsync(dto);
@@ -47,8 +49,9 @@ public class SessionsController : ControllerBase
             : CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    /// <summary>Inscrire un sportif (userId) à une séance (valide le sportif sur Identity Service).</summary>
+    /// <summary>Inscrire un sportif à une séance (Utilisateur authentifié).</summary>
     [HttpPost("{id:long}/register")]
+    [Authorize]
     public async Task<IActionResult> Register(long id, [FromBody] RegisterSessionDto dto)
     {
         try
@@ -70,8 +73,9 @@ public class SessionsController : ControllerBase
         }
     }
 
-    /// <summary>Mettre à jour le statut d'une séance (SCHEDULED, COMPLETED, CANCELLED).</summary>
+    /// <summary>Mettre à jour le statut d'une séance (ADMIN UNIQUEMENT).</summary>
     [HttpPatch("{id:long}/status")]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> UpdateStatus(long id, [FromBody] UpdateSessionStatusDto dto)
     {
         try
@@ -85,8 +89,9 @@ public class SessionsController : ControllerBase
         }
     }
 
-    /// <summary>Supprimer une séance.</summary>
+    /// <summary>Supprimer une séance (ADMIN UNIQUEMENT).</summary>
     [HttpDelete("{id:long}")]
+    [Authorize(Roles = "ADMIN")]
     public async Task<IActionResult> Delete(long id)
     {
         var deleted = await _service.DeleteAsync(id);

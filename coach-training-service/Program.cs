@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CoachTrainingService.Data;
 using CoachTrainingService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -28,7 +29,7 @@ builder.Services.AddScoped<CoachService>();
 builder.Services.AddScoped<ProgramService>();
 builder.Services.AddScoped<SessionService>();
 
-// ── 3. Sécurité Keycloak / JWT Bearer (Atelier 9) ──────────────────────────────
+// ── 3. Sécurité Keycloak / JWT Bearer avec RBAC (Rôles ADMIN, COACH, SPORTIF) ─
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -36,9 +37,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.RequireHttpsMetadata = false; // Développement local
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateAudience = false, // Keycloak utilise des audiences spécifiques
+            ValidateAudience = false, // Keycloak gère les audiences par client
             ValidateIssuer = true,
             ValidIssuer = "http://localhost:8180/realms/sportbook"
+        };
+
+        // Mappage automatique des rôles Keycloak (realm_access.roles) vers ASP.NET Core Roles
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                if (context.Principal?.Identity is ClaimsIdentity identity)
+                {
+                    var realmAccess = identity.FindFirst("realm_access")?.Value;
+                    if (!string.IsNullOrEmpty(realmAccess))
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(realmAccess);
+                        if (doc.RootElement.TryGetProperty("roles", out var roles))
+                        {
+                            foreach (var role in roles.EnumerateArray())
+                            {
+                                var r = role.GetString();
+                                if (!string.IsNullOrEmpty(r))
+                                    identity.AddClaim(new Claim(ClaimTypes.Role, r));
+                            }
+                        }
+                    }
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 builder.Services.AddAuthorization();
