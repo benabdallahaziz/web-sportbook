@@ -107,18 +107,19 @@ export const PROGRAMS: CrudConfig = {
   fields: [
     { key: 'name', label: 'Nom', type: 'text', required: true },
     { key: 'description', label: 'Description', type: 'textarea', formOnly: true },
-    { key: 'duration', label: 'Durée (semaines)', type: 'number' },
+    { key: 'durationWeeks', label: 'Durée (semaines)', type: 'number' },
     { key: 'coachId', label: 'Coach (id)', type: 'number', required: true },
   ],
 };
 export const SESSIONS: CrudConfig = {
   title: 'Séances', subtitle: 'Séances d’entraînement planifiées.',
-  endpoint: '/api/sessions', itemLabel: 'séance', writeRoles: ALL,
+  endpoint: '/api/sessions', itemLabel: 'séance', writeRoles: ADMIN_GERANT,
   fields: [
     { key: 'date', label: 'Date', type: 'date', required: true },
     { key: 'startTime', label: 'Heure', type: 'time', required: true },
-    { key: 'status', label: 'Statut', type: 'select', options: ['SCHEDULED', 'DONE', 'CANCELLED'], required: true },
+    { key: 'status', label: 'Statut', type: 'select', options: ['SCHEDULED', 'COMPLETED', 'CANCELLED'], required: true },
     { key: 'programId', label: 'Programme (id)', type: 'number', required: true },
-    { key: 'userId', label: 'Sportif (id)', type: 'number', currentUserId: true },
+    // Une séance est créée LIBRE : le sportif s'y inscrit depuis « Trouver mon coach » (POST /api/sessions/{id}/register)
+    { key: 'userId', label: 'Sportif inscrit (id, vide = séance libre)', type: 'number' },
   ],
 };

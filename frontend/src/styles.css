@@ -616,3 +616,53 @@ details p { margin: .5rem 0 0; color: var(--muted); }
   .queue .kind, .queue .muted { display: none; }
 }
 .space-badge { align-self: flex-start; margin: -.5rem 0 0 .6rem; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .15rem .55rem; border-radius: 99px; background: rgba(255, 255, 255, .14); color: #fff; }
+
+/* ═════════ Back-office admin : une carte par microservice ═════════ */
+.kpis.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 1.25rem; margin-bottom: 1.25rem; }
+.svc { margin: 0; display: flex; flex-direction: column; gap: .85rem; border-top: 4px solid var(--court); }
+.svc[data-module='tournaments'], .svc[data-module='stats'] { border-top-color: var(--ball); }
+.svc[data-module='venues'] { border-top-color: var(--pitch); }
+.svc[data-module='marketplace'] { border-top-color: var(--amber); }
+.svc[data-health='down'] { border-top-color: var(--danger); }
+.svc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.svc-head h2 { font-size: 1.1rem; margin-bottom: .25rem; }
+.svc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); gap: .5rem; }
+.svc-kpis > div { background: var(--chalk); border-radius: 8px; padding: .5rem .65rem; display: flex; flex-direction: column; }
+.svc-kpis b { font-family: var(--font-head); font-size: 1.35rem; line-height: 1.1; }
+.svc-kpis b small { font-size: .85rem; font-weight: 500; opacity: .6; }
+.svc-kpis span { font-size: .78rem; color: var(--muted); }
+.svc-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: auto; padding-top: .25rem; }
+.svc-actions .count { margin-left: .3rem; }
+@media (max-width: 1100px) { .kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Création d'un tour directement depuis le formulaire de match */
+.round-inline { background: var(--court-soft); border: 1px dashed #bccfe6; border-radius: 8px; padding: .75rem 1rem; }
+.round-inline p { margin: 0 0 .5rem; font-size: .9rem; }
+.round-inline-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.round-inline-row input { flex: 1 1 220px; }
+
+/* ═════════ Fenêtre modale réutilisable (venues, …) ═════════ */
+.modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(16, 28, 44, .55); display: grid; place-items: center; padding: 1rem; animation: fade .15s ease-out; }
+.modal { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow-lift); width: min(100%, 760px); max-height: calc(100vh - 2rem); display: flex; flex-direction: column; overflow: hidden; }
+.modal.wide { width: min(100%, 960px); }
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--line-soft); }
+.modal-head h2 { font-size: 1.3rem; }
+.modal-body { padding: 1.25rem; overflow-y: auto; }
+.modal-foot { display: flex; justify-content: flex-end; gap: .5rem; padding: .9rem 1.25rem; border-top: 1px solid var(--line-soft); background: #f8fafc; }
+.modal-close { border: 0; background: transparent; font-size: 1.6rem; line-height: 1; color: var(--muted); cursor: pointer; border-radius: 8px; width: 2.2rem; height: 2.2rem; }
+.modal-close:hover { background: var(--line-soft); color: var(--ink); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem 1rem; }
+.form-grid .wide { grid-column: 1 / -1; }
+.chip-check { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .75rem; border: 1px solid var(--line); border-radius: 99px; cursor: pointer; font-weight: 600; font-size: .88rem; color: var(--muted); margin: 0; }
+.chip-check.on { background: var(--court-soft); border-color: #bccfe6; color: var(--court-dark); }
+.chip-check input { width: auto; margin: 0; }
+.pill.warn-pill { background: var(--amber-soft); color: var(--amber); }
+.pill.ok-pill { background: var(--pitch-soft); color: #14633f; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .modal-backdrop { padding: 0; place-items: stretch; }
+  .modal, .modal.wide { width: 100%; max-height: 100vh; border-radius: 0; }
+  .form-grid { grid-template-columns: 1fr; }
+}

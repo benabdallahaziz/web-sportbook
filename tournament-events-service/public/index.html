@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SportBook Tournois</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🏆</span>
+      <div>
+        <h1>SportBook · Tournois</h1>
+        <p class="subtitle">Client REST en JavaScript natif (fetch)</p>
+      </div>
+    </div>
+
+    <form id="api-form" class="api-config" title="URL de base de l'API">
+      <label for="api-base">API</label>
+      <input id="api-base" type="url" spellcheck="false">
+      <button type="submit" class="btn btn-ghost">Tester</button>
+      <span id="api-status" class="badge badge-unknown" role="status">…</span>
+    </form>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-tab="tournaments" aria-selected="true">Tournois</button>
+    <button class="tab" role="tab" data-tab="teams" aria-selected="false">Équipes</button>
+    <button class="tab" role="tab" data-tab="matches" aria-selected="false">Matchs</button>
+    <button class="tab" role="tab" data-tab="ranking" aria-selected="false">Classement</button>
+  </nav>
+
+  <main>
+    <!-- ═══════════════════════ TOURNOIS ═══════════════════════ -->
+    <section id="panel-tournaments" class="panel" role="tabpanel">
+      <div class="layout">
+        <form id="tournament-form" class="card form" novalidate>
+          <h2 data-title-create="Nouveau tournoi" data-title-edit="Modifier le tournoi">Nouveau tournoi</h2>
+          <label>Nom <span class="req">*</span>
+            <input name="name" maxlength="150" placeholder="Tournoi Ramadan 2027">
+          </label>
+          <div class="row">
+            <label>Début <input name="start_date" type="date"></label>
+            <label>Fin <input name="end_date" type="date"></label>
+          </div>
+          <label>Statut
+            <select name="status">
+              <option value="PLANNED">Planifié</option>
+              <option value="ONGOING">En cours</option>
+              <option value="FINISHED">Terminé</option>
+            </select>
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Ajouter</button>
+            <button type="button" class="btn btn-ghost" data-action="cancel" hidden>Annuler</button>
+          </div>
+          <p class="hint">POST /api/tournaments · PUT /api/tournaments/:id</p>
+        </form>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Tournois</h2>
+            <button class="btn btn-ghost" data-action="reload-tournaments">Actualiser</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Nom</th><th>Dates</th><th>Statut</th><th class="right">Actions</th></tr></thead>
+              <tbody id="tournament-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Détail d'un tournoi : équipes inscrites + tours -->
+      <div id="tournament-detail" class="card detail" hidden>
+        <div class="card-head">
+          <h2 id="detail-title">Tournoi</h2>
+          <button class="btn btn-ghost" data-action="close-detail">Fermer</button>
+        </div>
+        <div class="detail-grid">
+          <div>
+            <h3>Équipes inscrites</h3>
+            <form id="register-form" class="inline-form" novalidate>
+              <select name="team_id" aria-label="Équipe à inscrire"></select>
+              <button class="btn btn-primary" type="submit">Inscrire</button>
+            </form>
+            <ul id="registered-teams" class="list"></ul>
+          </div>
+          <div>
+            <h3>Tours</h3>
+            <form id="round-form" class="inline-form" novalidate>
+              <input name="name" placeholder="Finale" aria-label="Nom du tour">
+              <input name="round_order" type="number" min="1" placeholder="Ordre" aria-label="Ordre" class="narrow">
+              <button class="btn btn-primary" type="submit">Ajouter</button>
+            </form>
+            <ul id="rounds" class="list"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════ ÉQUIPES ═══════════════════════ -->
+    <section id="panel-teams" class="panel" role="tabpanel" hidden>
+      <div class="layout">
+        <form id="team-form" class="card form" novalidate>
+          <h2 data-title-create="Nouvelle équipe" data-title-edit="Modifier l'équipe">Nouvelle équipe</h2>
+          <label>Nom <span class="req">*</span>
+            <input name="name" maxlength="100" placeholder="Team Alpha">
+          </label>
+          <label>Nombre de membres
+            <input name="members" type="number" min="0" placeholder="5">
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Ajouter</button>
+            <button type="button" class="btn btn-ghost" data-action="cancel" hidden>Annuler</button>
+          </div>
+          <p class="hint">POST /api/teams · PUT /api/teams/:id</p>
+        </form>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Équipes</h2>
+            <button class="btn btn-ghost" data-action="reload-teams">Actualiser</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Nom</th><th>Membres</th><th class="right">Actions</th></tr></thead>
+              <tbody id="team-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════ MATCHS ═══════════════════════ -->
+    <section id="panel-matches" class="panel" role="tabpanel" hidden>
+      <div class="layout">
+        <form id="match-form" class="card form" novalidate>
+          <h2 data-title-create="Nouveau match" data-title-edit="Modifier le match">Nouveau match</h2>
+          <label>Tournoi
+            <select name="tournament_id"></select>
+          </label>
+          <label>Tour <span class="req">*</span>
+            <select name="round_id"></select>
+          </label>
+          <div class="row">
+            <label>Équipe 1 <span class="req">*</span><select name="team1_id"></select></label>
+            <label>Équipe 2 <span class="req">*</span><select name="team2_id"></select></label>
+          </div>
+          <div class="row">
+            <label>Date <input name="date" type="date"></label>
+            <label>Statut
+              <select name="status">
+                <option value="SCHEDULED">Programmé</option>
+                <option value="ONGOING">En cours</option>
+                <option value="FINISHED">Terminé</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Ajouter</button>
+            <button type="button" class="btn btn-ghost" data-action="cancel" hidden>Annuler</button>
+          </div>
+          <p class="hint">POST /api/matches · PUT /api/matches/:id · PATCH /api/matches/:id/score</p>
+        </form>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Matchs</h2>
+            <div class="head-tools">
+              <select id="match-filter" aria-label="Filtrer par tournoi"></select>
+              <button class="btn btn-ghost" data-action="reload-matches">Actualiser</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Rencontre</th><th>Tour</th><th>Date</th><th>Statut</th><th>Score</th><th class="right">Actions</th></tr></thead>
+              <tbody id="match-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- ═══════════════ CLASSEMENT (microservice Python stats-service) ═══════════════ -->
+    <section id="panel-ranking" class="panel" role="tabpanel" hidden>
+      <div class="layout">
+        <form id="predict-form" class="card form" novalidate>
+          <h2>Pronostic</h2>
+          <label>Équipe 1 <select name="team1"></select></label>
+          <label>Équipe 2 <select name="team2"></select></label>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Calculer</button>
+          </div>
+          <div id="predict-result" class="predict" hidden></div>
+          <p class="hint">GET /api/stats/predict?team1=&amp;team2=</p>
+        </form>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Classement</h2>
+            <div class="head-tools">
+              <select id="ranking-filter" aria-label="Tournoi"></select>
+              <select id="ranking-order" aria-label="Trier par">
+                <option value="elo">Par Elo</option>
+                <option value="points">Par points</option>
+              </select>
+              <button class="btn btn-ghost" data-action="stats-sync" title="POST /api/stats/sync">Resynchroniser</button>
+            </div>
+          </div>
+          <p class="muted small" id="stats-source"></p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Équipe</th><th>Elo</th><th>J</th><th>V</th><th>N</th><th>D</th><th>Diff</th><th>Pts</th><th>Forme</th></tr></thead>
+              <tbody id="ranking-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Zone des messages (succès / erreurs) -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

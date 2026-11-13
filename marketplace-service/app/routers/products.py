@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -126,8 +127,16 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     product = db.get(Product, product_id)
     if not product:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Produit introuvable.")
-    db.delete(product)
-    db.commit()
+    try:
+        db.delete(product)
+        db.commit()
+    except IntegrityError:
+        # order_item.product_id est en RESTRICT : on garde l'historique des commandes
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Impossible de supprimer ce produit : il figure dans des commandes existantes.",
+        )
 
 
 # ════════════════════════════════════════════════════════════

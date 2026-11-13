@@ -1,0 +1,245 @@
+# =====================================================================
+#  SportBook – Application multi-conteneurs (Atelier Docker Compose)
+#
+#  Local  : docker compose up -d --build        (build + run de tout)
+#  Hub    : docker compose build && docker compose push
+#           (DOCKERHUB_USER dans le fichier .env, voir .env.example)
+#  Cloud  : docker compose -f docker-compose.cloud.yml up -d   (images du Hub, sans build)
+#
+#  Accès : frontend http://localhost:8000 · Gateway http://localhost:8085
+#          Eureka http://localhost:8761 · Keycloak http://localhost:8180 (admin/admin)
+#          RabbitMQ http://localhost:15672 (guest/guest) · MySQL localhost:3307
+# =====================================================================
+
+name: sportbook
+
+x-eureka: &eureka-env
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+
+services:
+
+  # ───────────────────────── Infrastructure ─────────────────────────
+  mysql-db:
+    image: mariadb:10.11
+    container_name: sportbook-mysql
+    restart: unless-stopped
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+    ports:
+      - "3307:3306"          # 3307 côté PC pour ne pas entrer en conflit avec XAMPP (3306)
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/sportbook_databases.sql:/docker-entrypoint-initdb.d/01_sportbook.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sportbook-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.1
+    container_name: sportbook-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm      # importe keycloak/sportbook-realm.json au démarrage
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+  eureka-server:
+    build: ./eureka-server
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-eureka-server:${TAG:-1.0}
+    container_name: sportbook-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      <<: *eureka-env
+
+  api-gateway:
+    build: ./api-gateway
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-api-gateway:${TAG:-1.0}
+    container_name: sportbook-gateway
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    depends_on:
+      - eureka-server
+    environment:
+      <<: *eureka-env
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+
+  # ───────────────────────── Microservices ─────────────────────────
+  identity-user-service:              # Java / Spring Boot
+    build: ./identity-user-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-identity-user-service:${TAG:-1.0}
+    container_name: sportbook-identity
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+    environment:
+      <<: *eureka-env
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/sportbook_identity?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ""
+
+  venue-management-service:           # Python / FastAPI
+    build: ./venue-management-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-venue-management-service:${TAG:-1.0}
+    container_name: sportbook-venue
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8082"]
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+    environment:
+      DB_HOST: mysql-db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ""
+      DB_NAME: sportbook_venue
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+      INSTANCE_HOST: venue-management-service
+      IDENTITY_SERVICE_URL: http://identity-user-service:8081
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_ENABLED: "true"
+
+  marketplace-service:                # Python / FastAPI
+    build: ./marketplace-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-marketplace-service:${TAG:-1.0}
+    container_name: sportbook-marketplace
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+    environment:
+      DB_HOST: mysql-db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ""
+      DB_NAME: sportbook_marketplace
+      SERVICE_HOST: marketplace-service
+      EUREKA_URL: http://eureka-server:8761/eureka
+      IDENTITY_SERVICE_URL: http://identity-user-service:8081
+
+  tournament-events-service:          # Node.js / Express
+    build: ./tournament-events-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-tournament-events-service:${TAG:-1.0}
+    container_name: sportbook-tournament
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      PORT: "8086"
+      DB_HOST: mysql-db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ""
+      DB_NAME: sportbook_tournament
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: "8761"
+      EUREKA_INSTANCE_HOST: tournament-events-service
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+
+  coach-training-service:             # .NET 8 / ASP.NET Core
+    build: ./coach-training-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-coach-training-service:${TAG:-1.0}
+    container_name: sportbook-coach
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      urls: http://+:8087
+      ConnectionStrings__DefaultConnection: "Server=mysql-db;Port=3306;Database=sportbook_coach;User=root;Password=;AllowPublicKeyRetrieval=true;"
+      eureka__client__serviceUrl: http://eureka-server:8761/eureka/
+      eureka__instance__hostName: coach-training-service
+      eureka__instance__port: "8087"
+      eureka__instance__nonSecurePort: "8087"
+      Services__IdentityServiceUrl: http://identity-user-service:8081
+      RabbitMQ__Uri: ""                  # broker local du compose (au lieu de CloudAMQP)
+      RabbitMQ__HostName: rabbitmq
+      Security__KeycloakEnabled: "false"
+      Security__KeycloakAuthority: http://keycloak:8080/realms/sportbook
+      Security__KeycloakIssuer: http://localhost:8180/realms/sportbook
+
+  recommendation-service:             # Python / FastAPI + scikit-learn
+    build: ./recommendation-service
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-recommendation-service:${TAG:-1.0}
+    container_name: sportbook-recommendation
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    depends_on:
+      - eureka-server
+      - coach-training-service
+    environment:
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+      INSTANCE_HOST: recommendation-service
+      COACH_SERVICE_URL: http://coach-training-service:8087
+
+  stats-service:                      # Python / FastAPI – classement Elo
+    build: ./stats-service-python
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-stats-service:${TAG:-1.0}
+    container_name: sportbook-stats
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      PORT: "8088"
+      HOST: stats-service
+      DATABASE_URL: mysql+pymysql://root:@mysql-db:3306/sportbook_stats
+      EUREKA_SERVER: http://eureka-server:8761/eureka
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TOURNAMENT_FALLBACK_URL: http://tournament-events-service:8086
+
+  # ───────────────────────── Frontend ─────────────────────────
+  frontend:                           # Angular servi par nginx, /api relayé vers la Gateway
+    build: ./frontend
+    image: ${DOCKERHUB_USER:-sportbook}/sportbook-frontend:${TAG:-1.0}
+    container_name: sportbook-frontend
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  mysql-data:

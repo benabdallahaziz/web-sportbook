@@ -14,7 +14,7 @@ export class ShellComponent {
   open = signal(false);
   /** Admin → back-office ; Sportif / Gérant → espace utilisateur (couleurs et accueil différents). */
   isAdmin = computed(() => this.auth.hasRole('ADMIN'));
-  modules = computed(() => MODULES.filter((m) => !m.roles || this.auth.hasRole(...m.roles)));
+  modules = computed(() => MODULES.filter((m) => m.deployed !== false && (!m.roles || this.auth.hasRole(...m.roles))));
   /** Liens visibles selon les rôles de l'utilisateur (ex. Validation = ADMIN). */
   links = (m: ModuleInfo) => m.links.filter((l) => !l.roles || this.auth.hasRole(...l.roles));
   userMenu = signal(false);
@@ -31,8 +31,8 @@ export class ShellComponent {
     { label: 'Mes équipes', path: '/tournaments/teams' },
     { label: 'Réserver', path: '/bookings/list' },
     { label: 'Boutique', path: '/marketplace/products' },
-    { label: 'Coachs', path: '/coaches/list' },
-    ...(this.auth.hasRole('GERANT') ? [{ label: 'Gestion Terrains', path: '/venues/manage' }] : []),
+    { label: 'Coachs', path: '/coaches/trouver' },
+    ...(this.auth.hasRole('GERANT', 'ADMIN') ? [{ label: 'Espace Gérant', path: '/venues/gerant' }] : []),
   ]);
   roleLabel = computed(() =>
     (this.auth.user()?.roles ?? []).map((r) => ({ ADMIN: 'Administrateur', GERANT: 'Gérant', SPORTIF: 'Sportif' })[r] ?? r).join(' · '),

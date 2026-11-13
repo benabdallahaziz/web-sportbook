@@ -33,10 +33,32 @@
     </label>
     <label><span>Tour <b aria-hidden="true">*</b></span>
       <select name="round" [(ngModel)]="model.round_id" required [disabled]="!formRounds().length">
-        <option [ngValue]="null">{{ formTournament && !formRounds().length ? 'Aucun tour : créez-en un dans la fiche du tournoi' : 'Choisir…' }}</option>
+        <option [ngValue]="null">{{ !formTournament ? 'Choisissez d’abord un tournoi' : roundsLoading() ? 'Chargement…' : noRound() ? 'Aucun tour pour ce tournoi' : 'Choisir…' }}</option>
         @for (r of formRounds(); track r.id) { <option [ngValue]="r.id">{{ r.round_order }}. {{ r.name }}</option> }
       </select>
+      @if (!formTournament) {
+        <small class="muted">La liste des tours s’active quand vous choisissez un tournoi (à gauche).</small>
+      } @else if (noRound()) {
+        <small class="muted">Ce tournoi n’a pas encore de tour : {{ canCreateRound() ? 'créez-le ci-dessous.' : 'demandez à son organisateur d’en créer un.' }}</small>
+      }
     </label>
+    @if (noRound()) {
+      @if (canCreateRound()) {
+        <div class="round-inline wide">
+          <p>Ce tournoi n’a encore aucun tour. Créez-le ici, il sera sélectionné automatiquement :</p>
+          <div class="round-inline-row">
+            <input name="newRound" [(ngModel)]="newRoundName" placeholder="Ex. Phase de groupes, Quarts de finale…" aria-label="Nom du tour" />
+            <button type="button" class="btn primary" (click)="createRoundInline()" [disabled]="creatingRound() || !newRoundName.trim()">
+              {{ creatingRound() ? 'Création…' : 'Créer ce tour' }}</button>
+          </div>
+        </div>
+      } @else {
+        <p class="alert wide small">
+          Ce tournoi n’a encore aucun tour. Seul son organisateur ou un administrateur peut en créer un
+          (<a [routerLink]="['/tournaments/list', formTournament]">voir le tournoi</a>).
+        </p>
+      }
+    }
     <label><span>Équipe 1 <b aria-hidden="true">*</b></span>
       <select name="t1" [(ngModel)]="model.team1_id" required>
         <option [ngValue]="null">Choisir…</option>
@@ -54,10 +76,14 @@
       <select name="status" [(ngModel)]="model.status">
         @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
       </select>
+      @if (model.status === 'FINISHED' && !model.score) {
+        <small class="warn">Un match terminé doit avoir un score : saisissez-le dans la liste des matchs (il passera en « Terminé »).</small>
+      }
     </label>
     <div class="form-actions wide">
       <button type="button" class="btn ghost" (click)="formOpen.set(false)">Annuler</button>
-      <button type="submit" class="btn primary" [disabled]="saving()">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
+      <button type="submit" class="btn primary" [disabled]="saving() || !model.round_id"
+              [title]="model.round_id ? '' : 'Choisissez un tour pour enregistrer le match'">{{ saving() ? 'Enregistrement…' : 'Enregistrer' }}</button>
     </div>
   </form>
 }

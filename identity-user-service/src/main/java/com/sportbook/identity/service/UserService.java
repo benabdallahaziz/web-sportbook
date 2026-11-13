@@ -21,6 +21,7 @@ public class UserService {
 
     private static final Set<String> SELF_REGISTER_ROLES = Set.of("SPORTIF", "GERANT");
     private static final Set<String> STATUSES = Set.of("ACTIVE", "BLOCKED");
+    private static final Set<String> ALL_ROLES = Set.of("SPORTIF", "GERANT", "ADMIN");
 
     private final UserRepository users;
     private final RoleRepository roles;
@@ -107,8 +108,57 @@ public class UserService {
         return toResponse(users.save(user));
     }
 
+    /** Remplace les rôles d'un utilisateur (ADMIN). Le dernier administrateur ne peut pas perdre son rôle. */
+    public UserResponse updateRoles(Long id, List<String> roleNames) {
+        Set<String> wanted = new java.util.HashSet<>();
+        for (String r : roleNames) {
+            String name = r == null ? "" : r.trim().toUpperCase();
+            if (!ALL_ROLES.contains(name)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rôle inconnu : " + r + " (SPORTIF, GERANT ou ADMIN)");
+            }
+            wanted.add(name);
+        }
+        User user = get(id);
+        boolean wasAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getName()));
+        if (wasAdmin && !wanted.contains("ADMIN") && users.countByRolesName("ADMIN") <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Impossible de retirer le rôle ADMIN au dernier administrateur");
+        }
+        Set<Role> newRoles = new java.util.HashSet<>();
+        for (String name : wanted) {
+            newRoles.add(roles.findByName(name)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Rôle introuvable : " + name)));
+        }
+        user.getRoles().clear();
+        user.getRoles().addAll(newRoles);
+        return toResponse(users.save(user));
+    }
+
     public void delete(Long id) {
-        users.delete(get(id));
+        User user = get(id);
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getName()));
+        if (isAdmin && users.countByRolesName("ADMIN") <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Impossible de supprimer le dernier administrateur");
+        }
+        users.delete(user);
+    }
+
+    /** Crée le compte administrateur initial s'il n'existe aucun ADMIN (premier démarrage). */
+    public void ensureDefaultAdmin(String email, String password) {
+        if (users.existsByRolesName("ADMIN")) return;
+        User user = users.findByEmail(email).orElseGet(() -> {
+            User u = new User();
+            u.setEmail(email);
+            u.setPassword(encoder.encode(password));
+            Profile p = new Profile();
+            p.setFirstName("Admin");
+            p.setLastName("SportBook");
+            p.setUser(u);
+            u.setProfile(p);
+            return u;
+        });
+        user.getRoles().add(roles.findByName("ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Rôle ADMIN introuvable")));
+        users.save(user);
     }
 
     private User get(Long id) {

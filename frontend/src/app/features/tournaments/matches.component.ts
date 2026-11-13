@@ -84,16 +84,61 @@ export class MatchesComponent implements OnInit {
   }
 
   /** Les tours dépendent du tournoi choisi dans le formulaire. */
-  loadRounds(tournamentId: number | null, keepRound = false) {
+  loadRounds(tournamentId: number | null, keepRound = false, selectRoundId: number | null = null) {
     this.formTournament = tournamentId;
     if (!keepRound) this.model.round_id = null;
     if (!tournamentId) {
       this.formRounds.set([]);
       return;
     }
+    this.roundsLoading.set(true);
     this.api.rounds(tournamentId).subscribe({
-      next: (r) => this.formRounds.set(r),
-      error: (e) => this.notify.error(e),
+      next: (r) => {
+        this.formRounds.set(r);
+        this.roundsLoading.set(false);
+        // Un seul tour (ou tour tout juste créé) : on le sélectionne pour l'utilisateur
+        if (selectRoundId) this.model.round_id = selectRoundId;
+        else if (!this.model.round_id && r.length === 1) this.model.round_id = r[0].id;
+      },
+      error: (e) => {
+        this.roundsLoading.set(false);
+        this.notify.error(e);
+      },
+    });
+  }
+
+  // ── Création d'un tour sans quitter le formulaire ──
+  roundsLoading = signal(false);
+  creatingRound = signal(false);
+  newRoundName = 'Tour 1';
+
+  /** Seuls l'administrateur et l'organisateur du tournoi peuvent créer un tour (règle du backend). */
+  canCreateRound(): boolean {
+    const t = this.tournaments().find((x) => x.id === this.formTournament);
+    return !!t && (this.access.isAdmin() || this.access.isOwner(t));
+  }
+
+  noRound(): boolean {
+    return !!this.formTournament && !this.roundsLoading() && this.formRounds().length === 0;
+  }
+
+  createRoundInline() {
+    const tid = this.formTournament;
+    const name = this.newRoundName.trim();
+    if (!tid || !name) return;
+    this.creatingRound.set(true);
+    const order = (this.formRounds().at(-1)?.round_order ?? 0) + 1;
+    this.api.addRound(tid, name, order).subscribe({
+      next: (r) => {
+        this.creatingRound.set(false);
+        this.notify.success(`Tour « ${r.name} » créé.`);
+        this.formError.set(null);
+        this.loadRounds(tid, true, r.id);
+      },
+      error: (e) => {
+        this.creatingRound.set(false);
+        this.notify.error(e);
+      },
     });
   }
 
@@ -146,8 +191,21 @@ export class MatchesComponent implements OnInit {
       next: (u) => {
         this.matches.update((list) => list.map((x) => (x.id === m.id ? u : x)));
         this.notify.success(`Score enregistré : ${u.team1_name} ${u.score} ${u.team2_name}.`);
+        this.refreshRanking();
       },
       error: (e) => this.notify.error(e),
+    });
+  }
+
+  /**
+   * Met le classement à jour tout de suite. Sans RabbitMQ, stats-service ne reçoit pas
+   * l'événement "match.updated" : on déclenche sa synchronisation REST (action admin).
+   */
+  private refreshRanking() {
+    if (!this.access.isAdmin()) return;
+    this.api.syncStats().subscribe({
+      next: () => this.notify.info('Classement mis à jour.'),
+      error: () => this.notify.info('Score enregistré. Le classement sera mis à jour à la prochaine synchronisation.'),
     });
   }
 

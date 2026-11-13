@@ -3,11 +3,14 @@ Client de communication inter-microservice (Séance 7 - Communication Synchrone)
 Interroge l'Identity & User Service (port 8081) pour valider les utilisateurs.
 """
 import logging
+import os
+
 import httpx
 
 logger = logging.getLogger(__name__)
 
-IDENTITY_SERVICE_URL = "http://localhost:8081/api/users"
+# Docker : IDENTITY_SERVICE_URL=http://identity-user-service:8081
+IDENTITY_SERVICE_URL = os.getenv("IDENTITY_SERVICE_URL", "http://localhost:8081").rstrip("/") + "/api/users"
 
 
 def verify_user_exists(user_id: int) -> dict:

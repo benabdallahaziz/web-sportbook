@@ -2,6 +2,7 @@ package com.sportbook.identity.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -28,6 +29,9 @@ public final class Dtos {
             String address) {}
 
     public record StatusRequest(@NotBlank String status) {}
+
+    /** Rôles attribués par l'administrateur, ex. ["GERANT"] ou ["SPORTIF","ADMIN"]. */
+    public record RolesRequest(@NotEmpty List<String> roles) {}
 
     /** Réponse publique : le mot de passe n'est jamais renvoyé. */
     public record UserResponse(

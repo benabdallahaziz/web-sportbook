@@ -49,6 +49,7 @@
               <span class="user-role">{{ roleLabel() }}</span>
               <a routerLink="/profile" role="menuitem" (click)="userMenu.set(false)">Mon profil</a>
               <a routerLink="/tournaments/teams" role="menuitem" (click)="userMenu.set(false)">Mes équipes</a>
+              <a routerLink="/coaches/mes-seances" role="menuitem" (click)="userMenu.set(false)">Mes séances</a>
               <button role="menuitem" (click)="auth.logout()">Se déconnecter</button>
             </div>
           }

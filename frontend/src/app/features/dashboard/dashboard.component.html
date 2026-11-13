@@ -1,78 +1,185 @@
 <header class="page-head">
   <div>
-    <p class="eyebrow">Administration</p>
+    <p class="eyebrow">Back-office administrateur</p>
     <h1>Tableau de bord</h1>
-    <p class="muted">Bonjour {{ auth.fullName() }} · vue d’ensemble de la plateforme SportBook.</p>
+    <p class="muted">
+      Bonjour {{ auth.fullName() }} · {{ upCount() }} / {{ services.length }} microservices en ligne
+      @if (lastUpdate()) { · mis à jour à {{ lastUpdate()!.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }} }
+    </p>
   </div>
   <div class="actions">
     <a class="btn ghost" routerLink="/tournaments/approvals">
       File de validation @if (pendingTotal()) { <span class="count">{{ pendingTotal() }}</span> }
     </a>
-    <button class="btn primary" (click)="refresh()">Actualiser</button>
+    <button class="btn primary" (click)="refresh()" [disabled]="loading()">Actualiser</button>
   </div>
 </header>
 
-<!-- ═════════ CHIFFRES CLÉS ═════════ -->
-<section class="kpis five" aria-label="Chiffres clés">
-  <div class="kpi">
-    <span class="kpi-value">{{ kpi().users ?? '—' }}</span><span class="kpi-label">utilisateurs</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-value">{{ kpi().tournaments ?? '—' }}</span><span class="kpi-label">tournois</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-value">{{ kpi().teams ?? '—' }}</span><span class="kpi-label">équipes</span>
-  </div>
-  <div class="kpi">
-    <span class="kpi-value">{{ kpi().played ?? '—' }}<small>/{{ kpi().matches ?? '—' }}</small></span>
-    <span class="kpi-label">matchs joués</span>
-  </div>
+<!-- ═════════ CHIFFRES CLÉS DE LA PLATEFORME ═════════ -->
+<section class="kpis six" aria-label="Chiffres clés">
+  <a class="kpi kpi-link" routerLink="/users">
+    <span class="kpi-value">{{ users()?.length ?? '—' }}</span><span class="kpi-label">utilisateurs</span>
+  </a>
+  <a class="kpi kpi-link" routerLink="/venues/gerant">
+    <span class="kpi-value">{{ venues()?.length ?? '—' }}</span><span class="kpi-label">complexes</span>
+  </a>
+  <a class="kpi kpi-link" routerLink="/marketplace/analytics">
+    <span class="kpi-value">{{ money(sales()?.total_revenue) }}</span><span class="kpi-label">chiffre d’affaires</span>
+  </a>
+  <a class="kpi kpi-link" routerLink="/tournaments/list">
+    <span class="kpi-value">{{ tournaments()?.length ?? '—' }}</span><span class="kpi-label">tournois</span>
+  </a>
+  <a class="kpi kpi-link" routerLink="/coaches/list">
+    <span class="kpi-value">{{ coaches()?.length ?? '—' }}</span><span class="kpi-label">coachs</span>
+  </a>
   <a class="kpi accent kpi-link" routerLink="/tournaments/approvals">
     <span class="kpi-value">{{ pendingTotal() }}</span><span class="kpi-label">à valider →</span>
   </a>
 </section>
 
-<!-- ═════════ STATISTIQUES ═════════ -->
-<div class="stats-grid">
-  <section class="panel chart-card">
-    <h2>Tournois par statut</h2>
-    <p class="muted small">Nombre de tournois, toutes propositions confondues</p>
-    @if (loading()) { <div class="skeleton chart-skel"></div> }
-    @else if (tournaments() === null) { <p class="alert small">Service des tournois indisponible.</p> }
-    @else { <app-bar-list [rows]="tournamentsByStatus()" unit="tournoi(s)" /> }
-  </section>
+<!-- ═════════ UNE CARTE PAR MICROSERVICE ═════════ -->
+<div class="admin-grid">
 
-  <section class="panel chart-card">
-    <h2>Propositions des utilisateurs</h2>
-    <p class="muted small">Tournois et matchs, selon la décision de l’administrateur</p>
-    @if (loading()) { <div class="skeleton chart-skel"></div> }
-    @else if (tournaments() === null) { <p class="alert small">Service des tournois indisponible.</p> }
-    @else { <app-bar-list [rows]="approvals()" unit="élément(s)" /> }
-  </section>
-
-  <section class="panel chart-card">
-    <h2>Comptes par rôle</h2>
-    <p class="muted small">Utilisateurs inscrits (service Identity)</p>
+  <!-- Identity -->
+  <section class="panel svc" data-module="identity" [attr.data-health]="state('identity')">
+    <div class="svc-head">
+      <div><h2>Utilisateurs</h2><code>identity-user-service · Java</code></div>
+      <span class="badge" [class.bad]="state('identity') === 'down'" [class.pending]="state('identity') === 'checking'">
+        {{ state('identity') === 'up' ? 'En ligne' : state('identity') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
+    </div>
     @if (loading()) { <div class="skeleton chart-skel"></div> }
     @else if (users() === null) { <p class="alert small">Service Identity indisponible.</p> }
-    @else { <app-bar-list [rows]="usersByRole()" unit="compte(s)" /> }
+    @else {
+      <div class="svc-kpis">
+        <div><b>{{ users()!.length }}</b><span>comptes</span></div>
+        <div><b [class.warn]="blockedUsers()">{{ blockedUsers() }}</b><span>bloqués</span></div>
+      </div>
+      <app-bar-list [rows]="usersByRole()" unit="compte(s)" />
+    }
+    <div class="svc-actions">
+      <a class="btn small primary" routerLink="/users">Gérer comptes & rôles</a>
+    </div>
   </section>
 
-  <section class="panel chart-card">
-    <div class="section-head">
-      <div><h2>Top 5 des équipes</h2><p class="muted small">Points au classement (stats-service, Python)</p></div>
-      <a class="link-more" routerLink="/tournaments/ranking">Classement →</a>
+  <!-- Venue -->
+  <section class="panel svc" data-module="venues" [attr.data-health]="state('venues')">
+    <div class="svc-head">
+      <div><h2>Complexes & terrains</h2><code>venue-management-service · Python</code></div>
+      <span class="badge" [class.bad]="state('venues') === 'down'" [class.pending]="state('venues') === 'checking'">
+        {{ state('venues') === 'up' ? 'En ligne' : state('venues') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
+    </div>
+    @if (loading()) { <div class="skeleton chart-skel"></div> }
+    @else if (venues() === null) { <p class="alert small">Service Venue indisponible.</p> }
+    @else {
+      <div class="svc-kpis">
+        <div><b>{{ venues()!.length }}</b><span>complexes</span></div>
+        <div><b>{{ fields()?.length ?? '—' }}</b><span>terrains</span></div>
+      </div>
+      <app-bar-list [rows]="fieldsBySport()" unit="terrain(s)" emptyText="Aucun terrain enregistré." />
+    }
+    <div class="svc-actions">
+      <a class="btn small primary" routerLink="/venues/gerant">Gérer complexes & terrains</a>
+      <a class="btn small ghost" routerLink="/venues/catalog">Catalogue</a>
+    </div>
+  </section>
+
+  <!-- Marketplace -->
+  <section class="panel svc" data-module="marketplace" [attr.data-health]="state('marketplace')">
+    <div class="svc-head">
+      <div><h2>Boutique</h2><code>marketplace-service · Python</code></div>
+      <span class="badge" [class.bad]="state('marketplace') === 'down'" [class.pending]="state('marketplace') === 'checking'">
+        {{ state('marketplace') === 'up' ? 'En ligne' : state('marketplace') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
+    </div>
+    @if (loading()) { <div class="skeleton chart-skel"></div> }
+    @else if (products() === null) { <p class="alert small">Service Marketplace indisponible.</p> }
+    @else {
+      <div class="svc-kpis">
+        <div><b>{{ products()!.length }}</b><span>produits</span></div>
+        <div><b [class.warn]="outOfStock()">{{ outOfStock() }}</b><span>en rupture</span></div>
+        <div><b>{{ sales()?.total_orders ?? '—' }}</b><span>commandes</span></div>
+      </div>
+      <app-bar-list [rows]="ordersByStatus()" unit="commande(s)" emptyText="Aucune commande." />
+    }
+    <div class="svc-actions">
+      <a class="btn small primary" routerLink="/marketplace/orders">Traiter les commandes
+        @if (sales()?.pending_orders) { <span class="count">{{ sales()!.pending_orders }}</span> }</a>
+      <a class="btn small ghost" routerLink="/marketplace/products">Produits & stock</a>
+      <a class="btn small ghost" routerLink="/marketplace/analytics">Analytics</a>
+    </div>
+  </section>
+
+  <!-- Tournament -->
+  <section class="panel svc" data-module="tournaments" [attr.data-health]="state('tournaments')">
+    <div class="svc-head">
+      <div><h2>Tournois</h2><code>tournament-events-service · Node.js</code></div>
+      <span class="badge" [class.bad]="state('tournaments') === 'down'" [class.pending]="state('tournaments') === 'checking'">
+        {{ state('tournaments') === 'up' ? 'En ligne' : state('tournaments') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
+    </div>
+    @if (loading()) { <div class="skeleton chart-skel"></div> }
+    @else if (tournaments() === null) { <p class="alert small">Service des tournois indisponible.</p> }
+    @else {
+      <div class="svc-kpis">
+        <div><b>{{ tournaments()!.length }}</b><span>tournois</span></div>
+        <div><b>{{ teams()?.length ?? '—' }}</b><span>équipes</span></div>
+        <div><b>{{ playedMatches() }}<small>/{{ matches()?.length ?? '—' }}</small></b><span>matchs joués</span></div>
+      </div>
+      <app-bar-list [rows]="tournamentsByStatus()" unit="tournoi(s)" />
+    }
+    <div class="svc-actions">
+      <a class="btn small primary" routerLink="/tournaments/approvals">Valider
+        @if (pendingTotal()) { <span class="count">{{ pendingTotal() }}</span> }</a>
+      <a class="btn small ghost" routerLink="/tournaments/list">Tournois</a>
+      <a class="btn small ghost" routerLink="/tournaments/matches">Matchs & scores</a>
+      <a class="btn small ghost" routerLink="/tournaments/teams">Équipes</a>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="panel svc" data-module="stats" [attr.data-health]="state('stats')">
+    <div class="svc-head">
+      <div><h2>Classement Elo</h2><code>stats-service · Python</code></div>
+      <span class="badge" [class.bad]="state('stats') === 'down'" [class.pending]="state('stats') === 'checking'">
+        {{ state('stats') === 'up' ? 'En ligne' : state('stats') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
     </div>
     @if (loading()) { <div class="skeleton chart-skel"></div> }
     @else if (ranking() === null) { <p class="alert small">Service de statistiques indisponible.</p> }
-    @else { <app-bar-list [rows]="topTeams()" unit="pts" emptyText="Aucun match terminé pour l’instant." /> }
+    @else { <app-bar-list [rows]="topTeams()" unit="pts" emptyText="Aucun match terminé : saisissez des scores puis synchronisez." /> }
+    <div class="svc-actions">
+      <button class="btn small primary" (click)="syncStats()" [disabled]="syncing() || state('stats') === 'down'">
+        {{ syncing() ? 'Synchronisation…' : 'Recalculer le classement' }}</button>
+      <a class="btn small ghost" routerLink="/tournaments/ranking">Classement & pronostics</a>
+    </div>
+  </section>
+
+  <!-- Coach -->
+  <section class="panel svc" data-module="coaches" [attr.data-health]="state('coaches')">
+    <div class="svc-head">
+      <div><h2>Coachs & entraînements</h2><code>coach-training-service · .NET</code></div>
+      <span class="badge" [class.bad]="state('coaches') === 'down'" [class.pending]="state('coaches') === 'checking'">
+        {{ state('coaches') === 'up' ? 'En ligne' : state('coaches') === 'down' ? 'Hors ligne' : 'Test…' }}</span>
+    </div>
+    @if (loading()) { <div class="skeleton chart-skel"></div> }
+    @else if (coaches() === null) { <p class="alert small">Service Coach indisponible.</p> }
+    @else {
+      <div class="svc-kpis">
+        <div><b>{{ coaches()!.length }}</b><span>coachs</span></div>
+        <div><b>{{ programs()?.length ?? '—' }}</b><span>programmes</span></div>
+        <div><b>{{ avgRating() ?? '—' }}</b><span>note moyenne</span></div>
+      </div>
+      <app-bar-list [rows]="sessionsByStatus()" unit="séance(s)" />
+    }
+    <div class="svc-actions">
+      <a class="btn small primary" routerLink="/coaches/list">Gérer les coachs</a>
+      <a class="btn small ghost" routerLink="/coaches/programs">Programmes</a>
+      <a class="btn small ghost" routerLink="/coaches/sessions">Séances</a>
+    </div>
   </section>
 </div>
 
 <!-- ═════════ FILE DE VALIDATION (aperçu) ═════════ -->
 <section class="panel">
   <div class="section-head">
-    <div><h2>À valider</h2><p class="muted small">Dernières propositions des utilisateurs</p></div>
+    <div><h2>À valider</h2><p class="muted small">Dernières propositions des utilisateurs (service Tournois)</p></div>
     <a class="btn small primary" routerLink="/tournaments/approvals">Tout traiter</a>
   </div>
   @if (pendingTotal() === 0) {
@@ -99,29 +206,4 @@
       }
     </ul>
   }
-</section>
-
-<!-- ═════════ ÉTAT DES MICROSERVICES ═════════ -->
-<section>
-  <div class="section-head">
-    <div><h2>Microservices</h2><p class="muted small">{{ upCount() }} / {{ modules().length }} en ligne via la Gateway et Eureka</p></div>
-    <button class="btn small ghost" (click)="check()">Vérifier les services</button>
-  </div>
-  <div class="module-grid">
-    @for (m of modules(); track m.id) {
-      <article class="panel module" [attr.data-module]="m.id" [attr.data-health]="health()[m.id]">
-        <div class="module-top">
-          <h2>{{ m.label }}</h2>
-          <span class="badge" [class.bad]="health()[m.id] === 'down'" [class.pending]="health()[m.id] === 'checking'">
-            {{ health()[m.id] === 'up' ? 'En ligne' : health()[m.id] === 'down' ? 'Hors ligne' : 'Test…' }}
-          </span>
-        </div>
-        <p class="muted">{{ m.description }}</p>
-        <code>{{ m.service }}</code>
-        <div class="module-links">
-          @for (l of visibleLinks(m); track l.path) { <a class="btn small ghost" [routerLink]="l.path">{{ l.label }}</a> }
-        </div>
-      </article>
-    }
-  </div>
 </section>

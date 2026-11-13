@@ -1,0 +1,2972 @@
+{
+  "info": {
+    "name": "SportBook - Tournament & Events Service",
+    "description": "Tests de tous les endpoints REST (cas nominaux + erreurs 400/404/409).\nLancer le dossier complet avec le Runner : les ids sont chaînés automatiquement.\nbaseUrl = http://localhost:8086 (direct) ou http://localhost:8085 (via API Gateway).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "userId",
+      "value": "1"
+    },
+    {
+      "key": "userRoles",
+      "value": "ADMIN"
+    },
+    {
+      "key": "proposalId",
+      "value": ""
+    },
+    {
+      "key": "tournamentId",
+      "value": ""
+    },
+    {
+      "key": "teamId",
+      "value": ""
+    },
+    {
+      "key": "team2Id",
+      "value": ""
+    },
+    {
+      "key": "roundId",
+      "value": ""
+    },
+    {
+      "key": "matchId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Santé",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"status = UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Tournois",
+      "item": [
+        {
+          "name": "Créer un tournoi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"En-tête Location\", () => pm.expect(pm.response.headers.get(\"Location\")).to.match(/\\/api\\/tournaments\\/\\d+$/));",
+                  "pm.test(\"Ressource renvoyée\", () => { const b = pm.response.json(); pm.expect(b.id).to.be.a(\"number\"); pm.expect(b.start_date).to.eql(\"2027-04-01\"); });",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"tournamentId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tournoi Postman 2027\",\n  \"start_date\": \"2027-04-01\",\n  \"end_date\": \"2027-04-15\",\n  \"status\": \"PLANNED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les tournois",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Tableau\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtenir un tournoi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Bon id\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"tournamentId\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remplacer un tournoi (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Nom modifié\", () => pm.expect(pm.response.json().name).to.eql(\"Tournoi Postman 2027 (modifié)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tournoi Postman 2027 (modifié)\",\n  \"start_date\": \"2027-04-05\",\n  \"end_date\": \"2027-04-20\",\n  \"status\": \"PLANNED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier le statut (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Statut ONGOING, nom conservé\", () => { const b = pm.response.json(); pm.expect(b.status).to.eql(\"ONGOING\"); pm.expect(b.name).to.include(\"modifié\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ONGOING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ajouter un tour",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"roundId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Finale\",\n  \"round_order\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/rounds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "rounds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les tours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"1 tour\", () => pm.expect(pm.response.json()).to.have.lengthOf(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/rounds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "rounds"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Équipes",
+      "item": [
+        {
+          "name": "Créer une équipe (A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"teamId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Alpha\",\n  \"members\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créer une équipe (B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"team2Id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Beta\",\n  \"members\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les équipes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Tableau\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtenir une équipe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remplacer une équipe (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"members = 8\", () => pm.expect(pm.response.json().members).to.eql(8));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Team Alpha Pro\",\n  \"members\": 8\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier les membres (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Nom conservé\", () => pm.expect(pm.response.json().name).to.eql(\"Team Alpha Pro\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"members\": 9\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Inscriptions",
+      "item": [
+        {
+          "name": "Inscrire équipe A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"team_id\": {{teamId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inscrire équipe B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"team_id\": {{team2Id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Double inscription → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(409);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"team_id\": {{teamId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Équipes du tournoi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"2 équipes\", () => pm.expect(pm.response.json()).to.have.lengthOf(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "teams"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Matchs",
+      "item": [
+        {
+          "name": "Créer un match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Noms joints\", () => pm.expect(pm.response.json().team1_name).to.eql(\"Team Alpha Pro\"));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"matchId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2027-04-15\",\n  \"status\": \"SCHEDULED\",\n  \"round_id\": {{roundId}},\n  \"team1_id\": {{teamId}},\n  \"team2_id\": {{team2Id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lister les matchs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Matchs d'un tournoi (filtre)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"1 match\", () => pm.expect(pm.response.json()).to.have.lengthOf(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches?tournament_id={{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches"
+              ],
+              "query": [
+                {
+                  "key": "tournament_id",
+                  "value": "{{tournamentId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtenir un match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remplacer un match (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2027-04-16\",\n  \"status\": \"ONGOING\",\n  \"score\": null,\n  \"round_id\": {{roundId}},\n  \"team1_id\": {{teamId}},\n  \"team2_id\": {{team2Id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier la date (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Date modifiée\", () => pm.expect(pm.response.json().date).to.eql(\"2027-04-17\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2027-04-17\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Saisir le score",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Score 3-1 et FINISHED\", () => { const b = pm.response.json(); pm.expect(b.score).to.eql(\"3-1\"); pm.expect(b.status).to.eql(\"FINISHED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": \"3-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}/score",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}",
+                "score"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Cas d'erreur",
+      "item": [
+        {
+          "name": "400 · tournoi sans nom",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});",
+                  "pm.test(\"details[]\", () => pm.expect(pm.response.json().details).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start_date\": \"2027-01-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · date de fin avant début",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X\",\n  \"start_date\": \"2027-05-10\",\n  \"end_date\": \"2027-05-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · statut inconnu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · PATCH vide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · JSON mal formé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Team\", }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · id non numérique",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "abc"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · même équipe deux fois",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"round_id\": {{roundId}},\n  \"team1_id\": {{teamId}},\n  \"team2_id\": {{teamId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · tour inexistant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"round_id\": 999999,\n  \"team1_id\": {{teamId}},\n  \"team2_id\": {{team2Id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 · score mal formé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(400);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": \"trois-un\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}/score",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}",
+                "score"
+              ]
+            }
+          }
+        },
+        {
+          "name": "404 · tournoi inexistant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "999999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "404 · PUT équipe inexistante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "999999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "404 · DELETE match inexistant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "999999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "404 · route inconnue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/inconnu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inconnu"
+              ]
+            }
+          }
+        },
+        {
+          "name": "409 · supprimer une équipe qui joue un match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(409);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Validation (utilisateur → admin)",
+      "item": [
+        {
+          "name": "Utilisateur : proposer un tournoi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"PENDING\", () => pm.expect(pm.response.json().approval_status).to.eql(\"PENDING\"));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"proposalId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9001"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Proposition Postman\",\n  \"start_date\": \"2027-09-01\",\n  \"end_date\": \"2027-09-05\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Autre utilisateur : proposition invisible (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9002"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Utilisateur : auto-validation interdite (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(403);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9001"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}/approval",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}",
+                "approval"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin : file des tournois en attente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"contient la proposition\", () => pm.expect(pm.response.json().some((t) => t.id === Number(pm.collectionVariables.get(\"proposalId\")))).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments?approval=PENDING",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments"
+              ],
+              "query": [
+                {
+                  "key": "approval",
+                  "value": "PENDING"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin : refuser avec motif",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"REJECTED + motif\", () => { const b = pm.response.json(); pm.expect(b.approval_status).to.eql(\"REJECTED\"); pm.expect(b.rejection_reason).to.eql(\"Dates à revoir\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"REJECTED\",\n  \"reason\": \"Dates à revoir\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}/approval",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}",
+                "approval"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Utilisateur : corriger → re-soumis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"de nouveau PENDING\", () => pm.expect(pm.response.json().approval_status).to.eql(\"PENDING\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9001"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"end_date\": \"2027-09-06\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin : valider",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"APPROVED\", () => pm.expect(pm.response.json().approval_status).to.eql(\"APPROVED\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}/approval",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}",
+                "approval"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Utilisateur : validé → plus modifiable (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(403);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9001"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Utilisateur : file des inscriptions interdite (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(403);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "9001"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "SPORTIF"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/registrations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "registrations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin : supprimer la proposition",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{proposalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{proposalId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Suppressions (nettoyage)",
+      "item": [
+        {
+          "name": "Supprimer le match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Match supprimé → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Réponse JSON\", () => pm.response.to.be.json);",
+                  "pm.test(\"Format d'erreur { status, message }\", () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.status).to.eql(404);",
+                  "  pm.expect(b.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Désinscrire équipe B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}/teams/{{team2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}",
+                "teams",
+                "{{team2Id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer le tournoi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/tournaments/{{tournamentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tournaments",
+                "{{tournamentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer équipe A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{teamId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{teamId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Supprimer équipe B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));",
+                  "pm.test(\"Pas de corps\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "{{userRoles}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/teams/{{team2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "teams",
+                "{{team2Id}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

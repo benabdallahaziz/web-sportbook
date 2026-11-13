@@ -56,9 +56,16 @@ USE sportbook_venue;
 CREATE TABLE IF NOT EXISTS venue (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
+  description TEXT NULL,
+  city VARCHAR(60) NOT NULL DEFAULT '',      -- Tunis, Sousse, Ariana, Sfax...
   address VARCHAR(255),
   phone VARCHAR(30),
-  owner_id BIGINT NULL  -- id du gérant (microservice Identity)
+  image_url VARCHAR(500) NULL,               -- photo de couverture
+  amenities VARCHAR(255) NULL,               -- "parking,vestiaires,douches,wifi,eclairage,cafeteria"
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | INACTIVE
+  owner_id BIGINT NULL,                      -- id du gérant propriétaire (microservice Identity)
+  INDEX ix_venue_city (city),
+  INDEX ix_venue_owner (owner_id)
 );
 
 CREATE TABLE IF NOT EXISTS field (
@@ -66,6 +73,9 @@ CREATE TABLE IF NOT EXISTS field (
   name VARCHAR(100) NOT NULL,
   sport VARCHAR(50) NOT NULL,       -- Football, Tennis, Padel, Basketball
   price DOUBLE NOT NULL,            -- prix par heure (DT)
+  surface VARCHAR(50) NULL,         -- Gazon synthétique, Terre battue, Parquet, Dur
+  is_indoor TINYINT(1) NOT NULL DEFAULT 0,          -- couvert (1) ou plein air (0)
+  status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE',  -- AVAILABLE | MAINTENANCE
   venue_id BIGINT NOT NULL,
   CONSTRAINT fk_field_venue FOREIGN KEY (venue_id) REFERENCES venue(id) ON DELETE CASCADE
 );
@@ -173,13 +183,17 @@ CREATE TABLE IF NOT EXISTS tournament (
   name VARCHAR(150) NOT NULL,
   start_date DATE,
   end_date DATE,
-  status VARCHAR(30) NOT NULL DEFAULT 'PLANNED'
+  status VARCHAR(30) NOT NULL DEFAULT 'PLANNED',
+  approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',  -- PENDING, APPROVED, REJECTED (validation admin)
+  created_by BIGINT NULL,                                   -- id de l'utilisateur auteur (microservice Identity)
+  rejection_reason VARCHAR(255) NULL
 );
 
 CREATE TABLE IF NOT EXISTS team (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  members INT NOT NULL DEFAULT 0
+  members INT NOT NULL DEFAULT 0,
+  created_by BIGINT NULL                  -- propriétaire (microservice Identity)
 );
 
 CREATE TABLE IF NOT EXISTS registration (
@@ -209,6 +223,9 @@ CREATE TABLE IF NOT EXISTS matches (
   round_id BIGINT NOT NULL,
   team1_id BIGINT NOT NULL,
   team2_id BIGINT NOT NULL,
+  approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED',  -- PENDING, APPROVED, REJECTED (validation admin)
+  created_by BIGINT NULL,
+  rejection_reason VARCHAR(255) NULL,
   CONSTRAINT fk_match_round FOREIGN KEY (round_id) REFERENCES round(id) ON DELETE CASCADE,
   CONSTRAINT fk_match_t1 FOREIGN KEY (team1_id) REFERENCES team(id),
   CONSTRAINT fk_match_t2 FOREIGN KEY (team2_id) REFERENCES team(id)

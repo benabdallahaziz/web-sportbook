@@ -1,187 +1,158 @@
+"""
+/api/fields : terrains des complexes.
+
+  GET    /api/fields                           public  filtres : complexe, sport, prix, couvert, statut, ville
+  GET    /api/fields/{id}                      public
+  GET    /api/fields/{id}/summary              public  (booking-availability-service)
+  POST   /api/fields                           ADMIN | propriétaire du complexe ciblé
+  PUT    /api/fields/{id}                      ADMIN | propriétaire du complexe du terrain
+  PATCH  /api/fields/{id}/toggle-maintenance   ADMIN | propriétaire  AVAILABLE <-> MAINTENANCE
+  DELETE /api/fields/{id}                      ADMIN | propriétaire
+"""
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+
 from app.database import get_db
-from app.models import Field, Venue
-from app.schemas import FieldCreate, FieldUpdate, FieldResponse
 from app.messaging.rabbitmq import publish_event
-from app.security.jwt_auth import require_role, CurrentUser
+from app.models import Field, Venue
+from app.schemas import FieldCreate, FieldResponse, FieldUpdate
+from app.security.jwt_auth import CurrentUser, ensure_venue_owner, require_role
 
 router = APIRouter(prefix="/api/fields", tags=["Fields"])
 
+WRITE_ROLES = ["ADMIN", "GERANT"]
 
-@router.post("", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
-def create_field(
-    field_in: FieldCreate,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
-):
-    """
-    Ajouter un nouveau terrain lié à un complexe.
-    - Émet un événement RabbitMQ 'field.created'.
-    - Sécurité : Réservé aux profils ADMIN ou OWNER.
-    """
-    venue = db.query(Venue).filter(Venue.id == field_in.venue_id).first()
-    if not venue:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Le complexe sportif avec l'ID {field_in.venue_id} n'existe pas."
-        )
 
-    field = Field(
-        name=field_in.name,
-        sport=field_in.sport,
-        price=field_in.price,
-        venue_id=field_in.venue_id
-    )
-    db.add(field)
-    db.commit()
-    db.refresh(field)
+def _out(f: Field) -> FieldResponse:
+    out = FieldResponse.model_validate(f)
+    out.venue_name = f.venue.name if f.venue else None
+    out.venue_city = f.venue.city if f.venue else None
+    return out
 
-    # Événement RabbitMQ
-    publish_event("field.created", {
-        "id": field.id,
-        "name": field.name,
-        "sport": field.sport,
-        "price": field.price,
-        "venue_id": field.venue_id
-    })
 
+def _event(f: Field) -> dict:
+    return {"id": f.id, "name": f.name, "sport": f.sport, "price": f.price, "surface": f.surface,
+            "is_indoor": f.is_indoor, "status": f.status, "venue_id": f.venue_id}
+
+
+def _get_field(db: Session, field_id: int) -> Field:
+    field = db.query(Field).options(joinedload(Field.venue)).filter(Field.id == field_id).first()
+    if not field:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Terrain {field_id} introuvable.")
     return field
 
 
+def _get_venue(db: Session, venue_id: int) -> Venue:
+    venue = db.query(Venue).filter(Venue.id == venue_id).first()
+    if not venue:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Le complexe sportif {venue_id} n'existe pas.")
+    return venue
+
+
+# ─────────────────────────────── Lecture ───────────────────────────────
 @router.get("", response_model=List[FieldResponse])
 @router.get("/", response_model=List[FieldResponse], include_in_schema=False)
-def get_all_fields(
-    venue_id: Optional[int] = Query(None, description="Filtrer par ID du complexe"),
-    sport: Optional[str] = Query(None, description="Filtrer par sport (Football, Tennis, Padel...)"),
-    min_price: Optional[float] = Query(None, description="Prix horaire minimum"),
-    max_price: Optional[float] = Query(None, description="Prix horaire maximum"),
-    search: Optional[str] = Query(None, description="Recherche par nom"),
-    db: Session = Depends(get_db)
+def list_fields(
+    venue_id: Optional[int] = Query(None, description="Terrains d'un complexe"),
+    sport: Optional[str] = Query(None, description="Football, Tennis, Padel…"),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    indoor: Optional[bool] = Query(None, description="true : couverts, false : plein air"),
+    status_filter: Optional[str] = Query(None, alias="status", description="AVAILABLE ou MAINTENANCE"),
+    city: Optional[str] = Query(None, description="Ville du complexe"),
+    search: Optional[str] = Query(None, description="Recherche sur le nom du terrain"),
+    db: Session = Depends(get_db),
 ):
-    """Récupérer la liste des terrains avec filtres optionnels (Public)."""
-    query = db.query(Field)
-
+    q = db.query(Field).options(joinedload(Field.venue))
     if venue_id is not None:
-        query = query.filter(Field.venue_id == venue_id)
+        q = q.filter(Field.venue_id == venue_id)
     if sport:
-        query = query.filter(Field.sport.ilike(f"%{sport}%"))
+        q = q.filter(Field.sport.ilike(f"%{sport.strip()}%"))
     if min_price is not None:
-        query = query.filter(Field.price >= min_price)
+        q = q.filter(Field.price >= min_price)
     if max_price is not None:
-        query = query.filter(Field.price <= max_price)
+        q = q.filter(Field.price <= max_price)
+    if indoor is not None:
+        q = q.filter(Field.is_indoor.is_(indoor))
+    if status_filter:
+        q = q.filter(Field.status == status_filter.upper())
+    if city:
+        q = q.join(Venue).filter(Venue.city.ilike(city.strip()))
     if search:
-        query = query.filter(Field.name.ilike(f"%{search}%"))
-
-    return query.all()
+        q = q.filter(Field.name.ilike(f"%{search.strip()}%"))
+    return [_out(f) for f in q.order_by(Field.venue_id, Field.sport, Field.name).all()]
 
 
 @router.get("/{field_id}", response_model=FieldResponse)
 def get_field(field_id: int, db: Session = Depends(get_db)):
-    """Afficher les détails d'un terrain spécifique."""
-    field = db.query(Field).filter(Field.id == field_id).first()
-    if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Terrain avec l'ID {field_id} introuvable."
-        )
-    return field
+    return _out(_get_field(db, field_id))
 
 
 @router.get("/{field_id}/summary")
 def get_field_summary(field_id: int, db: Session = Depends(get_db)):
-    """
-    Endpoint inter-microservices consommé par booking-availability-service
-    pour vérifier la tarification et le complexe d'un terrain avant validation de réservation.
-    """
-    field = db.query(Field).filter(Field.id == field_id).first()
-    if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Terrain avec l'ID {field_id} introuvable."
-        )
+    """Consommé par booking-availability-service avant de valider une réservation."""
+    f = _get_field(db, field_id)
     return {
-        "id": field.id,
-        "name": field.name,
-        "sport": field.sport,
-        "price_per_hour": field.price,
-        "venue_id": field.venue_id,
-        "venue_name": field.venue.name if field.venue else None
+        "id": f.id, "name": f.name, "sport": f.sport, "price_per_hour": f.price, "surface": f.surface,
+        "is_indoor": f.is_indoor, "status": f.status, "bookable": f.status == "AVAILABLE",
+        "venue_id": f.venue_id, "venue_name": f.venue.name if f.venue else None,
     }
 
 
-@router.put("/{field_id}", response_model=FieldResponse)
-def update_field(
-    field_id: int,
-    field_in: FieldUpdate,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
-):
-    """Modifier les informations d'un terrain."""
-    field = db.query(Field).filter(Field.id == field_id).first()
-    if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Terrain avec l'ID {field_id} introuvable."
-        )
-
-    if field_in.venue_id is not None:
-        venue = db.query(Venue).filter(Venue.id == field_in.venue_id).first()
-        if not venue:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Le complexe sportif avec l'ID {field_in.venue_id} n'existe pas."
-            )
-        field.venue_id = field_in.venue_id
-
-    if field_in.name is not None:
-        field.name = field_in.name
-    if field_in.sport is not None:
-        field.sport = field_in.sport
-    if field_in.price is not None:
-        field.price = field_in.price
-
+# ─────────────────────────────── Écriture ───────────────────────────────
+@router.post("", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+def create_field(field_in: FieldCreate, db: Session = Depends(get_db), user: CurrentUser = Depends(require_role(WRITE_ROLES))):
+    """Ajouter un terrain à un complexe dont on est propriétaire. Publie 'field.created'."""
+    venue = _get_venue(db, field_in.venue_id)
+    ensure_venue_owner(user, venue)
+    field = Field(**field_in.model_dump())
+    db.add(field)
     db.commit()
-    db.refresh(field)
+    field = _get_field(db, field.id)
+    publish_event("field.created", _event(field))
+    return _out(field)
 
-    # Événement RabbitMQ
-    publish_event("field.updated", {
-        "id": field.id,
-        "name": field.name,
-        "sport": field.sport,
-        "price": field.price,
-        "venue_id": field.venue_id
-    })
 
-    return field
+@router.put("/{field_id}", response_model=FieldResponse)
+def update_field(field_id: int, field_in: FieldUpdate, db: Session = Depends(get_db),
+                 user: CurrentUser = Depends(require_role(WRITE_ROLES))):
+    """Modifier un terrain. Le déplacer vers un autre complexe exige d'en être aussi propriétaire."""
+    field = _get_field(db, field_id)
+    ensure_venue_owner(user, field.venue)
+    data = field_in.model_dump(exclude_unset=True)
+    if data.get("venue_id") is not None and data["venue_id"] != field.venue_id:
+        ensure_venue_owner(user, _get_venue(db, data["venue_id"]))
+    for key, value in data.items():
+        if value is not None or key == "surface":
+            setattr(field, key, value)
+    db.commit()
+    field = _get_field(db, field_id)
+    publish_event("field.updated", _event(field))
+    return _out(field)
+
+
+@router.patch("/{field_id}/toggle-maintenance", response_model=FieldResponse)
+def toggle_maintenance(field_id: int, db: Session = Depends(get_db), user: CurrentUser = Depends(require_role(WRITE_ROLES))):
+    """Bascule le terrain entre AVAILABLE (réservable) et MAINTENANCE (fermé). Publie 'field.updated'."""
+    field = _get_field(db, field_id)
+    ensure_venue_owner(user, field.venue)
+    field.status = "AVAILABLE" if field.status == "MAINTENANCE" else "MAINTENANCE"
+    db.commit()
+    field = _get_field(db, field_id)
+    publish_event("field.updated", _event(field))
+    return _out(field)
 
 
 @router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_field(
-    field_id: int,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role(["ADMIN", "OWNER", "GERANT"]))
-):
-    """
-    Supprimer un terrain.
-    Émet un événement RabbitMQ 'field.deleted'.
-    """
-    field = db.query(Field).filter(Field.id == field_id).first()
-    if not field:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Terrain avec l'ID {field_id} introuvable."
-        )
+def delete_field(field_id: int, db: Session = Depends(get_db), user: CurrentUser = Depends(require_role(WRITE_ROLES))):
+    """Supprimer un terrain. Publie 'field.deleted'."""
+    field = _get_field(db, field_id)
+    ensure_venue_owner(user, field.venue)
     venue_id = field.venue_id
     db.delete(field)
     db.commit()
-
-    # Événement RabbitMQ
-    publish_event("field.deleted", {
-        "id": field_id,
-        "venue_id": venue_id
-    })
-
+    publish_event("field.deleted", {"id": field_id, "venue_id": venue_id})
     return None

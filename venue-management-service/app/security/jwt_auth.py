@@ -1,106 +1,121 @@
+"""
+Identification de l'utilisateur et contrôle d'appartenance (ownership).
+
+Deux sources d'identité :
+  1. SECURITY_ENABLED = True  : jeton JWT Bearer (Keycloak, Atelier 9) -> sub + rôles du realm.
+  2. SECURITY_ENABLED = False : en-têtes transmis par le frontend via la Gateway
+         X-User-Id: 12
+         X-User-Roles: GERANT,SPORTIF
+     (même convention que tournament-events-service et identity-user-service).
+
+Règles :
+  - lecture (GET) publique ;
+  - écriture réservée à ADMIN / GERANT ;
+  - un GERANT ne modifie que les complexes dont il est propriétaire (venue.owner_id == user.id),
+    et les terrains de ces complexes. ADMIN peut tout faire.
+"""
 import logging
 from typing import List, Optional
+
 import jwt
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, Header, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.config import settings
 
-logger = logging.getLogger("jwt-security")
+logger = logging.getLogger("venue-security")
 
 security_bearer = HTTPBearer(auto_error=False)
 
+ROLE_ALIASES = {"OWNER": "GERANT", "MANAGER": "GERANT", "USER": "SPORTIF"}
+
+
+def _norm_role(role: str) -> str:
+    r = str(role).strip().upper()
+    if r.startswith("ROLE_"):
+        r = r[5:]
+    return ROLE_ALIASES.get(r, r)
+
 
 class CurrentUser:
-    def __init__(self, user_id: str, username: str, roles: List[str], email: Optional[str] = None):
+    def __init__(self, user_id: Optional[int], roles: List[str], username: Optional[str] = None, email: Optional[str] = None):
         self.id = user_id
+        self.roles = sorted({_norm_role(r) for r in roles if str(r).strip()})
         self.username = username
-        self.roles = roles
         self.email = email
 
+    @property
+    def is_authenticated(self) -> bool:
+        return self.id is not None
+
+    @property
+    def is_admin(self) -> bool:
+        return "ADMIN" in self.roles
+
     def has_role(self, role: str) -> bool:
-        norm_role = role.upper()
-        return any(
-            r.upper() == norm_role or r.upper() == f"ROLE_{norm_role}"
-            for r in self.roles
-        )
+        return _norm_role(role) in self.roles
+
+    def __repr__(self) -> str:
+        return f"CurrentUser(id={self.id}, roles={self.roles})"
+
+
+def _to_int(value) -> Optional[int]:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_bearer)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
 ) -> CurrentUser:
-    """
-    Extrait et valide le token JWT transmis par Keycloak ou l'API Gateway.
-    Si SECURITY_ENABLED est False (mode dev/test), renvoie un utilisateur mock avec rôle ADMIN.
-    """
-    if not settings.SECURITY_ENABLED:
-        return CurrentUser(
-            user_id="dev-admin-id",
-            username="admin-dev",
-            roles=["ROLE_ADMIN", "ROLE_OWNER", "ROLE_USER"],
-            email="admin@sportbook.local"
-        )
-
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Jeton d'authentification Bearer manquant.",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-
-    token = credentials.credentials
-    try:
-        # Décoder le token sans validation de clé secrète asymétrique Keycloak si non configurée,
-        # ou avec la clé configurée
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_signature": False}  # Vérifié par Gateway ou public key
-        )
-
-        user_id = str(payload.get("sub", "unknown"))
-        username = payload.get("preferred_username", payload.get("username", user_id))
-        email = payload.get("email")
-
-        # Extraction des rôles selon le format Keycloak (realm_access ou resource_access) ou direct
-        roles: List[str] = []
-        if "realm_access" in payload and "roles" in payload["realm_access"]:
-            roles.extend(payload["realm_access"]["roles"])
-        if "resource_access" in payload:
-            for client, client_data in payload["resource_access"].items():
-                roles.extend(client_data.get("roles", []))
-        if "roles" in payload and isinstance(payload["roles"], list):
+    """Utilisateur courant ; anonyme (id None, aucun rôle) si rien n'est transmis."""
+    if settings.SECURITY_ENABLED and credentials:
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+                options={"verify_signature": False},  # signature vérifiée par la Gateway / Keycloak
+            )
+        except jwt.PyJWTError as e:
+            logger.warning("Jeton JWT invalide : %s", e)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Jeton invalide ou expiré : {e}",
+                                headers={"WWW-Authenticate": "Bearer"})
+        roles: List[str] = list(payload.get("realm_access", {}).get("roles", []))
+        for client_data in payload.get("resource_access", {}).values():
+            roles.extend(client_data.get("roles", []))
+        if isinstance(payload.get("roles"), list):
             roles.extend(payload["roles"])
+        user_id = _to_int(payload.get("user_id", payload.get("sub")))
+        return CurrentUser(user_id, roles, payload.get("preferred_username"), payload.get("email"))
 
-        return CurrentUser(
-            user_id=user_id,
-            username=username,
-            roles=roles,
-            email=email
-        )
-    except jwt.PyJWTError as e:
-        logger.warning("Token JWT invalide : %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Jeton d'authentification invalide ou expiré : {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+    if settings.SECURITY_ENABLED and not credentials:
+        return CurrentUser(None, [])
+
+    return CurrentUser(_to_int(x_user_id), (x_user_roles or "").split(","))
 
 
 def require_role(allowed_roles: List[str]):
-    """
-    Dépendance FastAPI pour restreindre l'accès à certains rôles (ex: ADMIN, OWNER).
-    """
-    def role_checker(user: CurrentUser = Depends(get_current_user)):
-        if not settings.SECURITY_ENABLED:
-            return user
+    """Dépendance FastAPI : 401 si anonyme, 403 si aucun des rôles requis."""
+    wanted = {_norm_role(r) for r in allowed_roles}
 
-        has_permission = any(user.has_role(r) for r in allowed_roles)
-        if not has_permission:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Accès refusé. Rôles requis : {allowed_roles}"
-            )
+    def role_checker(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        if not user.is_authenticated:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Connexion requise pour cette action.")
+        if not (set(user.roles) & wanted):
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                f"Accès refusé : rôle requis {' ou '.join(sorted(wanted))}.")
         return user
 
     return role_checker
+
+
+def ensure_venue_owner(user: CurrentUser, venue) -> None:
+    """403 si l'utilisateur n'est ni ADMIN ni propriétaire du complexe."""
+    if user.is_admin:
+        return
+    if venue.owner_id is None or venue.owner_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Vous n'êtes pas le propriétaire de ce complexe.")

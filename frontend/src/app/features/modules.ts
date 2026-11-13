@@ -8,6 +8,8 @@ export interface ModuleInfo {
   description: string;
   base: string;
   roles?: Role[];
+  /** false = microservice pas encore livré : masqué du menu admin et du contrôle de santé. */
+  deployed?: boolean;
   links: ModuleLink[];
 }
 
@@ -15,14 +17,14 @@ export interface ModuleInfo {
 export const MODULES: ModuleInfo[] = [
   { id: 'identity', label: 'Utilisateurs', service: 'identity-user-service', base: '/users', roles: ['ADMIN'],
     description: 'Comptes, profils et rôles.',
-    links: [{ label: 'Utilisateurs', path: '/users', endpoint: '/api/users' }] },
+    links: [{ label: 'Comptes & rôles', path: '/users', endpoint: '/api/users' }] },
   { id: 'venues', label: 'Complexes', service: 'venue-management-service', base: '/venues',
     description: 'Complexes sportifs et terrains.',
     links: [
       { label: 'Catalogue Terrains', path: '/venues/catalog', endpoint: '/api/venues' },
-      { label: 'Gestion Terrains', path: '/venues/manage', endpoint: '/api/fields', roles: ['ADMIN', 'GERANT'] },
+      { label: 'Espace Gérant', path: '/venues/gerant', endpoint: '/api/fields', roles: ['ADMIN', 'GERANT'] },
     ] },
-  { id: 'bookings', label: 'Réservations', service: 'booking-availability-service', base: '/bookings',
+  { id: 'bookings', label: 'Réservations', service: 'booking-availability-service', base: '/bookings', deployed: false,
     description: 'Créneaux et réservations.',
     links: [
       { label: 'Réservations', path: '/bookings/list', endpoint: '/api/bookings' },
@@ -31,8 +33,8 @@ export const MODULES: ModuleInfo[] = [
   { id: 'marketplace', label: 'Boutique', service: 'marketplace-service', base: '/marketplace',
     description: 'Produits, panier et commandes.',
     links: [
-      { label: 'Produits', path: '/marketplace/products', endpoint: '/api/products' },
-      { label: 'Panier', path: '/marketplace/cart', endpoint: '/api/cart' },
+      { label: 'Produits & stock', path: '/marketplace/products', endpoint: '/api/products' },
+      { label: 'Panier', path: '/marketplace/cart', endpoint: '/api/cart', roles: ['SPORTIF', 'GERANT'] },
       { label: 'Commandes', path: '/marketplace/orders', endpoint: '/api/orders' },
       { label: 'Ventes & Analytics', path: '/marketplace/analytics', endpoint: '/api/orders/analytics', roles: ['ADMIN', 'GERANT'] },
     ] },
@@ -55,5 +57,7 @@ export const MODULES: ModuleInfo[] = [
       { label: 'Coachs', path: '/coaches/list', endpoint: '/api/coaches' },
       { label: 'Programmes', path: '/coaches/programs', endpoint: '/api/programs' },
       { label: 'Séances', path: '/coaches/sessions', endpoint: '/api/sessions' },
+      { label: 'Trouver mon coach (IA)', path: '/coaches/trouver', endpoint: '/api/coaches', roles: ['SPORTIF', 'GERANT'] },
+      { label: 'Mes séances', path: '/coaches/mes-seances', endpoint: '/api/coaches', roles: ['SPORTIF', 'GERANT'] },
     ] },
 ];

@@ -1,0 +1,48 @@
+{
+  "realm": "sportbook",
+  "displayName": "SportBook",
+  "enabled": true,
+  "registrationAllowed": false,
+  "accessTokenLifespan": 3600,
+  "roles": {
+    "realm": [
+      { "name": "SPORTIF", "description": "Joueur qui réserve des terrains" },
+      { "name": "GERANT", "description": "Gérant de complexe sportif" },
+      { "name": "ADMIN", "description": "Administrateur de la plateforme" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sportbook-app",
+      "name": "SportBook (frontend / Postman)",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:4200/*", "http://localhost:8000/*", "*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin.sportbook",
+      "email": "admin@sportbook.tn",
+      "firstName": "Admin",
+      "lastName": "SportBook",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "sportif.test",
+      "email": "sportif@sportbook.tn",
+      "firstName": "Sportif",
+      "lastName": "Test",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "sportif123", "temporary": false }],
+      "realmRoles": ["SPORTIF"]
+    }
+  ]
+}
